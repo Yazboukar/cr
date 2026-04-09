@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Basic global styles */
+body {
+  @apply bg-gray-50 text-gray-800;
+}
+
+/* simple helpers */
+.btn {
+  @apply inline-block bg-blue-600 text-white px-4 py-2 rounded;
+}
+.input {
+  @apply border rounded px-3 py-2 w-full;
+}

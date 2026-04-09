@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ORGANIZER
+  PARTICIPANT
+  REPORTER
+}
+
+enum MeetingStatus {
+  PLANNED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum ParticipantStatus {
+  INVITED
+  CONFIRMED
+  DECLINED
+  ATTENDED
+  ABSENT
+}
+
+enum NotificationChannel {
+  EMAIL
+  IN_APP
+  SMS
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum ReportStatus {
+  DRAFT
+  UNDER_REVIEW
+  APPROVED
+  ARCHIVED
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String?
+  image          String?
+  hashedPassword String?
+  role           Role     @default(PARTICIPANT)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  meetings       Meeting[]
+  participants   MeetingParticipant[]
+  reports        Report[]
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+  ownedActionItems ReportActionItem[]
+  uploadedAttachments Attachment[]
+}
+
+model Meeting {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  type        String?
+  date        DateTime
+  startTime   DateTime?
+  endTime     DateTime?
+  location    String?
+  agenda      String?
+  status      MeetingStatus @default(PLANNED)
+  organizerId String
+  organizer   User     @relation(fields: [organizerId], references: [id])
+  participants MeetingParticipant[]
+  attachments Attachment[]
+  report      Report?
+  notifications Notification[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model MeetingParticipant {
+  id        String   @id @default(cuid())
+  meeting   Meeting  @relation(fields: [meetingId], references: [id])
+  meetingId String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  status    ParticipantStatus @default(INVITED)
+  role      String?
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  meeting     Meeting? @relation(fields: [meetingId], references: [id])
+  meetingId   String?
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  channel     NotificationChannel
+  scheduledAt DateTime
+  sentAt      DateTime?
+  status      NotificationStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  meeting     Meeting  @relation(fields: [meetingId], references: [id])
+  meetingId   String   @unique
+  title       String
+  summary     String?
+  content     String?
+  status      ReportStatus @default(DRAFT)
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  actionItems ReportActionItem[]
+  attachments Attachment[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ReportActionItem {
+  id          String   @id @default(cuid())
+  report      Report   @relation(fields: [reportId], references: [id])
+  reportId    String
+  description String
+  ownerId     String?
+  owner       User?    @relation(fields: [ownerId], references: [id])
+  dueDate     DateTime?
+  done        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  filename     String
+  url          String
+  meeting      Meeting? @relation(fields: [meetingId], references: [id])
+  meetingId    String?
+  report       Report?  @relation(fields: [reportId], references: [id])
+  reportId     String?
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  model     String
+  modelId   String
+  action    String
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id])
+  timestamp DateTime @default(now())
+  diff      Json?
+}

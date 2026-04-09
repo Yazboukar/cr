@@ -1,0 +1,24 @@
+# Render YAML template for quick deployment
+# - Create a new service on Render and connect to your GitHub repo
+# - This file defines a web service that builds the Dockerfile and a managed Postgres database
+
+services:
+  - type: web
+    name: meetingflow-web
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
+    buildCommand: npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NEXTAUTH_SECRET
+        value: change-me
+      - key: NEXTAUTH_URL
+        value: https://your-service.onrender.com
+
+databases:
+  - name: meetingflow-db
+    plan: starter
+
+# After deployment, Render will provide a DATABASE_URL in the Dashboard. Add that
+# DATABASE_URL to the `meetingflow-web` service env vars using the provided connection string.
