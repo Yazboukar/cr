@@ -40,6 +40,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'POST') {
     const session = await requireRole(req, res, ['ADMIN', 'ORGANIZER', 'REPORTER']);
     if (!session) return;
+    // Align write access with read scoping: the author must also be involved in
+    // the meeting (admin, organizer or participant), not just hold the role.
+    if (!(await requireMeetingAccess(res, session, meetingId))) return;
 
     const title = normalizeString(req.body?.title);
     const content = normalizeOptionalString(req.body?.content);

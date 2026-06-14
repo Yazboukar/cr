@@ -11,14 +11,7 @@ import {
   normalizeString,
   parseZonedDate,
 } from '../../../src/lib/validation';
-
-const REMINDER_OFFSETS_MINUTES = [24 * 60, 60, 30, 5];
-
-function buildReminderTimes(start: Date, now = new Date()) {
-  return REMINDER_OFFSETS_MINUTES
-    .map((offset) => new Date(start.getTime() - offset * 60 * 1000))
-    .filter((scheduledAt) => scheduledAt.getTime() > now.getTime());
-}
+import { buildReminderTimes } from '../../../src/lib/reminders';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
