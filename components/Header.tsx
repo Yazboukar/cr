@@ -10,6 +10,8 @@ const navItems = [
 
 export default function Header() {
   const { data: session } = useSession();
+  const role = (session?.user as any)?.role;
+  const items = role === 'ADMIN' ? [...navItems, { href: '/audit', label: 'Journal' }] : navItems;
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/50 bg-white/60 backdrop-blur-xl">
@@ -30,7 +32,7 @@ export default function Header() {
           </Link>
 
           <nav className="hidden items-center gap-1 rounded-full border border-emerald-950/8 bg-white/60 p-1 md:flex">
-            {navItems.map((item) => (
+            {items.map((item) => (
               <Link key={item.href} href={item.href} className="topbar-link">
                 {item.label}
               </Link>
