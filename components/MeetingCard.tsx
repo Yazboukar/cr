@@ -10,7 +10,8 @@ export default function MeetingCard({ meeting }: { meeting: any }) {
 
   return (
     <article className="panel group relative overflow-hidden">
-      <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,_#14553f,_#2f9d6d,_#d8b248)]" />
+      {/* National tricolour of the Togolese Republic: green / yellow / red */}
+      <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,_#006a4e,_#006a4e_40%,_#ffce00_40%,_#ffce00_70%,_#d21034_70%)]" />
 
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
