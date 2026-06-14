@@ -12,17 +12,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!session) return;
   if (!(await requireMeetingAccess(res, session, meetingId))) return;
 
-  const report = await prisma.report.findUnique({ where: { meetingId } });
+  const report = await prisma.report.findUnique({
+    where: { meetingId },
+    include: { approvedBy: { select: { name: true, email: true } } },
+  });
   if (!report) return res.status(404).json({ error: 'Compte rendu introuvable' });
 
+  const meta = {
+    status: report.status,
+    approvedByName: report.approvedBy?.name || report.approvedBy?.email || null,
+    approvedAt: report.approvedAt,
+  };
+
   if (format === 'docx') {
-    const buffer = await generateDocx({ title: report.title, content: report.content || '' });
+    const buffer = await generateDocx({ title: report.title, content: report.content || '' }, meta);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', attachmentHeader(`${report.title}.docx`, 'rapport'));
     return res.send(buffer);
   }
 
-  const pdf = await generatePdf({ title: report.title, content: report.content || '' });
+  const pdf = await generatePdf({ title: report.title, content: report.content || '' }, meta);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', attachmentHeader(`${report.title}.pdf`, 'rapport'));
   return res.send(pdf);

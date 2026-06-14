@@ -64,7 +64,8 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   meetings       Meeting[]
-  reports        Report[]
+  reports        Report[]   @relation("ReportAuthor")
+  approvedReports Report[]  @relation("ReportApprover")
   auditLogs      AuditLog[]
   uploadedAttachments Attachment[]
   accountTokens  AccountToken[]
@@ -165,11 +166,17 @@ model Report {
   content     String?
   status      ReportStatus @default(DRAFT)
   authorId    String
-  author      User     @relation(fields: [authorId], references: [id])
+  author      User     @relation("ReportAuthor", fields: [authorId], references: [id])
+  submittedAt  DateTime?
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   User?   @relation("ReportApprover", fields: [approvedById], references: [id])
   actionItems ReportActionItem[]
   attachments Attachment[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([approvedById])
 }
 
 model ReportActionItem {

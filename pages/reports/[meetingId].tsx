@@ -1,6 +1,14 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import useSWR from 'swr';
+import { useSession } from 'next-auth/react';
+import {
+  reportStatusLabels,
+  reportActionLabels,
+  availableActions,
+  isReportEditable,
+  type ReportAction,
+} from '../../src/lib/reportWorkflow';
 
 const fetcher = async (url: string) => {
   const response = await fetch(url);
@@ -16,13 +24,6 @@ type ActionItemForm = {
   done: boolean;
 };
 
-const reportStatuses = [
-  { value: 'DRAFT', label: 'Brouillon' },
-  { value: 'UNDER_REVIEW', label: 'En revue' },
-  { value: 'APPROVED', label: 'Approuve' },
-  { value: 'ARCHIVED', label: 'Archive' },
-];
-
 function toDateInput(value: string | null | undefined) {
   if (!value) return '';
   return new Date(value).toISOString().slice(0, 10);
@@ -31,10 +32,15 @@ function toDateInput(value: string | null | undefined) {
 export default function ReportEditor() {
   const router = useRouter();
   const { meetingId } = router.query;
+  const { data: session } = useSession();
   const { data: meetingData } = useSWR(meetingId ? `/api/meetings/${meetingId}` : null, fetcher);
-  const { data: reportData } = useSWR(meetingId ? `/api/reports/${meetingId}` : null, fetcher);
+  const { data: reportData, mutate: mutateReport } = useSWR(
+    meetingId ? `/api/reports/${meetingId}` : null,
+    fetcher
+  );
   const meeting = meetingData?.meeting;
   const report = reportData?.report;
+  const role = (session?.user as any)?.role || '';
 
   const [title, setTitle] = useState('Compte rendu');
   const [summary, setSummary] = useState('');
@@ -91,7 +97,6 @@ export default function ReportEditor() {
         title,
         summary,
         content,
-        status,
         actionItems: actionItems.filter((item) => item.description.trim().length > 0),
       }),
     });
@@ -114,6 +119,30 @@ export default function ReportEditor() {
   }
 
   const participants = meeting?.participants || [];
+  const editable = isReportEditable(status, role);
+  const workflowActions: ReportAction[] = report
+    ? availableActions(report.status, {
+        role,
+        userId: (session?.user as any)?.id || '',
+        authorId: report.authorId,
+        organizerId: meeting?.organizerId || '',
+      })
+    : [];
+
+  async function doTransition(action: ReportAction) {
+    setError('');
+    const response = await fetch(`/api/reports/${meetingId}/transition`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    if (response.ok) {
+      await mutateReport();
+      return;
+    }
+    const payload = await response.json().catch(() => ({}));
+    setError(payload?.error || "La transition n'a pas pu être effectuée.");
+  }
 
   return (
     <div className="page-shell">
@@ -148,21 +177,21 @@ export default function ReportEditor() {
 
       <form onSubmit={handleSave} className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section className="panel">
+          <fieldset disabled={!editable} className="contents">
           <div className="form-grid">
             <label className="label">
               Titre
               <input className="input" required value={title} onChange={(event) => setTitle(event.target.value)} />
             </label>
-            <label className="label">
+            <div className="label">
               Statut du compte rendu
-              <select className="input" value={status} onChange={(event) => setStatus(event.target.value)}>
-                {reportStatuses.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <div className="mt-2">
+                <span className="status-chip">
+                  {reportStatusLabels[status as keyof typeof reportStatusLabels] || status}
+                </span>
+                {!editable ? <span className="ml-2 text-xs text-slate-500">— lecture seule</span> : null}
+              </div>
+            </div>
           </div>
 
           <label className="label mt-4 block">
@@ -184,10 +213,12 @@ export default function ReportEditor() {
               onChange={(event) => setContent(event.target.value)}
             />
           </label>
+          </fieldset>
         </section>
 
         <aside className="space-y-6">
           <section className="panel">
+            <fieldset disabled={!editable} className="contents">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-800/70">
@@ -257,6 +288,7 @@ export default function ReportEditor() {
                 </div>
               ))}
             </div>
+            </fieldset>
           </section>
 
           <section className="panel">
@@ -264,9 +296,38 @@ export default function ReportEditor() {
               Publication
             </p>
             <div className="mt-4 flex flex-col gap-3">
-              <button className="btn" disabled={saving} type="submit">
+              <button className="btn" disabled={saving || !editable} type="submit">
                 {saving ? 'Enregistrement...' : 'Enregistrer'}
               </button>
+
+              {workflowActions.length > 0 ? (
+                <div className="flex flex-col gap-2 rounded-2xl border border-emerald-950/8 bg-emerald-50/60 px-3 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-800/70">
+                    Validation
+                  </p>
+                  {workflowActions.map((action) => (
+                    <button
+                      key={action}
+                      type="button"
+                      className={action === 'approve' ? 'btn' : 'btn-secondary'}
+                      onClick={() => doTransition(action)}
+                    >
+                      {reportActionLabels[action]}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {report?.status === 'APPROVED' && report?.approvedBy ? (
+                <p className="text-xs leading-5 text-emerald-800">
+                  Approuvé par {report.approvedBy.name || report.approvedBy.email}
+                  {report.approvedAt
+                    ? ` le ${new Date(report.approvedAt).toLocaleDateString('fr-FR')}`
+                    : ''}
+                  .
+                </p>
+              ) : null}
+
               {report ? (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                   <a className="btn-secondary" href={`/api/reports/${meetingId}/export?format=pdf`}>

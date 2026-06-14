@@ -3,8 +3,7 @@ import { prisma } from '../../../src/lib/prisma';
 import { requireAuth, requireMeetingAccess, requireRole } from '../../../src/lib/permissions';
 import { normalizeOptionalString, normalizeString } from '../../../src/lib/validation';
 import { logAction } from '../../../src/lib/audit';
-
-const REPORT_STATUSES = ['DRAFT', 'UNDER_REVIEW', 'APPROVED', 'ARCHIVED'] as const;
+import { isReportEditable } from '../../../src/lib/reportWorkflow';
 
 function normalizeActionItems(value: unknown) {
   if (!Array.isArray(value)) {
@@ -30,7 +29,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const report = await prisma.report.findUnique({
       where: { meetingId },
-      include: { author: { select: { id: true, name: true, email: true } }, actionItems: true },
+      include: {
+        author: { select: { id: true, name: true, email: true } },
+        approvedBy: { select: { id: true, name: true, email: true } },
+        actionItems: true,
+      },
     });
 
     if (!report) return res.status(404).json({ error: 'Compte rendu introuvable' });
@@ -47,15 +50,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const title = normalizeString(req.body?.title);
     const content = normalizeOptionalString(req.body?.content);
     const summary = normalizeOptionalString(req.body?.summary);
-    const status = normalizeString(req.body?.status) || 'DRAFT';
     const actionItems = normalizeActionItems(req.body?.actionItems);
 
     if (!title) {
       return res.status(400).json({ error: 'Titre requis' });
-    }
-
-    if (!REPORT_STATUSES.includes(status as any)) {
-      return res.status(400).json({ error: 'Statut invalide' });
     }
 
     const meeting = await prisma.meeting.findUnique({ where: { id: meetingId } });
@@ -73,10 +71,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (existing.authorId !== userId && session.user.role !== 'ADMIN') {
         return res.status(403).json({ error: 'Vous ne pouvez pas modifier ce compte rendu' });
       }
+      // Content is frozen once the report leaves DRAFT (status changes go through
+      // the approval workflow); admins may still amend.
+      if (!isReportEditable(existing.status, session.user.role)) {
+        return res
+          .status(409)
+          .json({ error: "Ce compte rendu n'est plus modifiable (en revue ou approuvé)." });
+      }
       const updated = await prisma.$transaction(async (tx) => {
         const report = await tx.report.update({
           where: { id: existing.id },
-          data: { title, content, summary, status: status as any },
+          data: { title, content, summary },
         });
 
         await tx.reportActionItem.deleteMany({ where: { reportId: existing.id } });
@@ -104,7 +109,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         title,
         summary,
         content,
-        status: status as any,
         author: { connect: { id: session.user.id } },
         actionItems: {
           create: actionItems.map((item) => ({
