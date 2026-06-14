@@ -7,3 +7,7 @@ coverage
 *.log
 .vscode
 .DS_Store
+
+# Temporary generated Prisma client copies (regenerable, never commit)
+tmp_prisma_client/
+tmp_prisma_dot/
