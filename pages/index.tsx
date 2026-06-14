@@ -26,12 +26,12 @@ export default function Dashboard() {
         <div className="hero-card">
           <span className="eyebrow">Coordination et suivi</span>
           <h1 className="max-w-2xl text-4xl font-semibold leading-tight md:text-5xl">
-            Espace de pilotage pour le Secrétariat général et la coordination des réunions.
+            Espace de pilotage du Secrétariat général pour la coordination des réunions.
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-7 text-emerald-50/82 md:text-base">
-            Ce tableau de bord est conçu pour appuyer le Secrétariat général dans
-            l&apos;organisation, la coordination et le suivi des réunions, avec une lecture plus
-            claire des sessions, des participants et des comptes rendus.
+            Ce tableau de bord accompagne le Secrétariat général dans l&apos;organisation, la
+            coordination et le suivi des réunions : une vue d&apos;ensemble claire des sessions,
+            des participants et des comptes rendus.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/meetings/create" className="btn">
@@ -45,20 +45,20 @@ export default function Dashboard() {
 
         <aside className="hero-aside">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-800/70">
-            Synthese rapide
+            Synthèse rapide
           </p>
           <div className="mt-4 space-y-4">
             <div>
               <p className="text-3xl font-semibold text-[color:var(--brand-green-900)]">
                 {meetings.length}
               </p>
-              <p className="mt-1 text-sm text-slate-600">Réunions référencées dans l&apos;espace.</p>
+              <p className="mt-1 text-sm text-slate-600">Réunions référencées au total.</p>
             </div>
             <div className="h-px bg-emerald-950/10" />
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
               <div className="rounded-2xl bg-white/70 px-4 py-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-800/60">
-                  A venir
+                  À venir
                 </p>
                 <p className="mt-2 text-xl font-semibold text-slate-800">{plannedCount}</p>
               </div>
@@ -76,12 +76,12 @@ export default function Dashboard() {
       <section className="metric-grid">
         <div className="metric-card">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-800/70">
-            Rythme
+            Volume
           </p>
           <p className="mt-3 text-3xl font-semibold text-[color:var(--brand-green-900)]">
             {meetings.length}
           </p>
-          <p className="mt-2 text-sm text-slate-600">Points de coordination suivis dans l&apos;application.</p>
+          <p className="mt-2 text-sm text-slate-600">Réunions enregistrées dans la plateforme.</p>
         </div>
         <div className="metric-card">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-800/70">
@@ -90,16 +90,16 @@ export default function Dashboard() {
           <p className="mt-3 text-3xl font-semibold text-[color:var(--brand-green-900)]">
             {plannedCount}
           </p>
-          <p className="mt-2 text-sm text-slate-600">Réunions encore en attente d&apos;exécution.</p>
+          <p className="mt-2 text-sm text-slate-600">Réunions planifiées, en attente de tenue.</p>
         </div>
         <div className="metric-card">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-800/70">
-            Mobilisation
+            Participants
           </p>
           <p className="mt-3 text-3xl font-semibold text-[color:var(--brand-green-900)]">
             {participantsCount}
           </p>
-          <p className="mt-2 text-sm text-slate-600">Invités déjà rattachés aux réunions suivies.</p>
+          <p className="mt-2 text-sm text-slate-600">Participants rattachés à l&apos;ensemble des réunions.</p>
         </div>
         <div className="metric-card">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-800/70">
@@ -109,7 +109,7 @@ export default function Dashboard() {
             {missingReportsCount}
           </p>
           <p className="mt-2 text-sm text-slate-600">
-            Réunions terminées sans compte rendu rattaché.
+            Réunions terminées sans compte rendu.
           </p>
         </div>
       </section>
@@ -117,16 +117,16 @@ export default function Dashboard() {
       <section className="mt-8 grid gap-4 lg:grid-cols-3">
         <div className="panel">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-800/70">
-            Execution
+            Exécution
           </p>
           <p className="mt-3 text-3xl font-semibold text-[color:var(--brand-green-900)]">
             {completedCount}
           </p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Réunions clôturées dans le portefeuille.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Réunions clôturées.</p>
         </div>
         <div className="panel">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-800/70">
-            Suivi actions
+            Actions de suivi
           </p>
           <p className="mt-3 text-3xl font-semibold text-[color:var(--brand-green-900)]">
             {pendingActionsCount}
@@ -135,12 +135,12 @@ export default function Dashboard() {
         </div>
         <div className="panel">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-800/70">
-            Mobilisation
+            Participation
           </p>
           <p className="mt-3 text-3xl font-semibold text-[color:var(--brand-green-900)]">
             {participantsCount}
           </p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Invitations cumulées sur toutes les réunions.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Invitations cumulées sur l&apos;ensemble des réunions.</p>
         </div>
       </section>
 
@@ -169,7 +169,7 @@ export default function Dashboard() {
               Aucune réunion pour le moment.
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Crée d&apos;abord une réunion pour commencer à structurer les invitations et les comptes rendus.
+              Créez une première réunion pour structurer les invitations et les comptes rendus.
             </p>
           </div>
         )}
