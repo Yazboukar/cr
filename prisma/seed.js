@@ -6,7 +6,6 @@ const prisma = new PrismaClient();
 (async function main() {
   const adminPass = await bcrypt.hash('adminpass', 10);
   const orgPass = await bcrypt.hash('organizerpass', 10);
-  const partPass = await bcrypt.hash('participantpass', 10);
 
   const admin = await prisma.user.upsert({
     where: { email: 'admin@example.com' },
@@ -20,10 +19,11 @@ const prisma = new PrismaClient();
     create: { email: 'organizer@example.com', name: 'Organizer', hashedPassword: orgPass, role: 'ORGANIZER' }
   });
 
-  const participant = await prisma.user.upsert({
+  // Invitee directory entry (a Contact has no login).
+  const participant = await prisma.contact.upsert({
     where: { email: 'participant@example.com' },
     update: {},
-    create: { email: 'participant@example.com', name: 'Participant', hashedPassword: partPass, role: 'PARTICIPANT' }
+    create: { email: 'participant@example.com', name: 'Participant' }
   });
 
   const meetingDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -39,7 +39,7 @@ const prisma = new PrismaClient();
       agenda: 'Project goals, milestones, responsibilities',
       status: 'PLANNED',
       organizer: { connect: { id: organizer.id } },
-      participants: { create: [{ user: { connect: { id: participant.id } }, status: 'INVITED' }] }
+      participants: { create: [{ contact: { connect: { id: participant.id } }, status: 'INVITED' }] }
     }
   });
 

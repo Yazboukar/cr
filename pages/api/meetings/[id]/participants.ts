@@ -30,40 +30,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method === 'POST') {
     const email = normalizeEmail(req.body?.email);
     const name = normalizeOptionalString(req.body?.name);
-    const userId = normalizeOptionalString(req.body?.userId);
+    const contactId = normalizeOptionalString(req.body?.contactId);
     const role = normalizeOptionalString(req.body?.role);
 
-    let participantUserId = userId;
+    let participantContactId = contactId;
 
-    if (!participantUserId) {
+    if (!participantContactId) {
       if (!email || !isValidEmail(email)) {
         return res.status(400).json({ error: 'Email invalide' });
       }
 
-      const user = await prisma.user.upsert({
+      const contact = await prisma.contact.upsert({
         where: { email },
-        // Preserve existing role on update (no downgrade of ADMIN/ORGANIZER).
         update: { name: name || undefined },
-        create: { email, name, role: 'PARTICIPANT' },
+        create: { email, name },
         select: { id: true },
       });
-      participantUserId = user.id;
+      participantContactId = contact.id;
     }
 
     const participant = await prisma.meetingParticipant.upsert({
-      where: { meetingId_userId: { meetingId: id, userId: participantUserId } },
+      where: { meetingId_contactId: { meetingId: id, contactId: participantContactId } },
       update: { role },
       create: {
         meetingId: id,
-        userId: participantUserId,
+        contactId: participantContactId,
         role,
       },
-      include: { user: true },
+      include: { contact: true },
     });
 
     await logAction('MeetingParticipant', participant.id, 'UPSERT', context.session.user.id, {
       meetingId: id,
-      userId: participantUserId,
+      contactId: participantContactId,
     });
 
     return res.status(200).json({ participant });
@@ -92,7 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const updated = await prisma.meetingParticipant.update({
       where: { id: participantId },
       data: { status },
-      include: { user: true },
+      include: { contact: true },
     });
 
     await logAction('MeetingParticipant', participantId, 'STATUS_UPDATE', context.session.user.id, {

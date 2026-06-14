@@ -223,8 +223,8 @@ export default function ReportEditor() {
                     >
                       <option value="">Non assigne</option>
                       {participants.map((participant: any) => (
-                        <option key={participant.userId} value={participant.userId}>
-                          {participant.user?.name || participant.user?.email}
+                        <option key={participant.contact?.id} value={participant.contact?.id}>
+                          {participant.contact?.name || participant.contact?.email}
                         </option>
                       ))}
                     </select>

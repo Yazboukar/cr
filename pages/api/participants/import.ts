@@ -42,16 +42,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     seenEmails.add(email);
 
-    await prisma.user.upsert({
+    await prisma.contact.upsert({
       where: { email },
-      // Keep existing role intact on update (no privilege downgrade on re-import).
       update: {
         name: name || undefined,
       },
       create: {
         email,
         name: name || null,
-        role: 'PARTICIPANT',
       },
     });
 

@@ -59,12 +59,22 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   meetings       Meeting[]
-  participants   MeetingParticipant[]
   reports        Report[]
   auditLogs      AuditLog[]
-  notifications  Notification[]
-  ownedActionItems ReportActionItem[]
   uploadedAttachments Attachment[]
+}
+
+// Directory of people who can be invited to meetings. A Contact is NOT an
+// authentication account (see User) — invitees receive email/SMS reminders and
+// do not log in. Keeping the two apart removes the role-mutation footgun.
+model Contact {
+  id               String   @id @default(cuid())
+  name             String?
+  email            String   @unique
+  createdAt        DateTime @default(now())
+  participants     MeetingParticipant[]
+  notifications    Notification[]
+  ownedActionItems ReportActionItem[]
 }
 
 model Meeting {
@@ -97,14 +107,14 @@ model MeetingParticipant {
   id        String   @id @default(cuid())
   meeting   Meeting  @relation(fields: [meetingId], references: [id])
   meetingId String
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
+  contact   Contact  @relation(fields: [contactId], references: [id])
+  contactId String
   status    ParticipantStatus @default(INVITED)
   role      String?
   createdAt DateTime @default(now())
 
-  @@unique([meetingId, userId])
-  @@index([userId])
+  @@unique([meetingId, contactId])
+  @@index([contactId])
   @@index([status])
 }
 
@@ -112,8 +122,8 @@ model Notification {
   id          String   @id @default(cuid())
   meeting     Meeting? @relation(fields: [meetingId], references: [id])
   meetingId   String?
-  user        User     @relation(fields: [userId], references: [id])
-  userId      String
+  contact     Contact  @relation(fields: [contactId], references: [id])
+  contactId   String
   channel     NotificationChannel
   scheduledAt DateTime
   sentAt      DateTime?
@@ -122,7 +132,7 @@ model Notification {
 
   @@index([status, scheduledAt])
   @@index([meetingId])
-  @@index([userId])
+  @@index([contactId])
 }
 
 model Report {
@@ -147,7 +157,7 @@ model ReportActionItem {
   reportId    String
   description String
   ownerId     String?
-  owner       User?    @relation(fields: [ownerId], references: [id])
+  owner       Contact? @relation(fields: [ownerId], references: [id])
   dueDate     DateTime?
   done        Boolean  @default(false)
   createdAt   DateTime @default(now())

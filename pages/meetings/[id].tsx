@@ -216,9 +216,9 @@ export default function MeetingDetail() {
                 >
                   <div>
                     <p className="font-semibold text-slate-800">
-                      {participant.user?.name || participant.user?.email}
+                      {participant.contact?.name || participant.contact?.email}
                     </p>
-                    <p className="text-sm text-slate-500">{participant.user?.email}</p>
+                    <p className="text-sm text-slate-500">{participant.contact?.email}</p>
                   </div>
                   <select
                     className="input mt-0"

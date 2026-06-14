@@ -54,7 +54,7 @@ async function processNotifications() {
   const now = new Date();
   const pending = await prisma.notification.findMany({
     where: { scheduledAt: { lte: now }, status: 'PENDING' },
-    include: { user: true, meeting: true }
+    include: { contact: true, meeting: true }
   });
 
   for (const notification of pending) {
@@ -70,9 +70,9 @@ async function processNotifications() {
     }
 
     try {
-      const user = notification.user;
-      if (!user) {
-        console.error('User not found for notification', notification.id);
+      const contact = notification.contact;
+      if (!contact) {
+        console.error('Contact not found for notification', notification.id);
         await prisma.notification.update({
           where: { id: notification.id },
           data: { status: 'FAILED', sentAt: null }
@@ -87,7 +87,7 @@ async function processNotifications() {
           : new Date(notification.scheduledAt).toLocaleString();
 
         await sendEmail(
-          user.email,
+          contact.email,
           `Rappel reunion - ${meetingTitle}`,
           `<p>Bonjour,</p><p>La reunion <strong>${meetingTitle}</strong> est prevue ${buildReminderLabel(notification)}.</p><p>Date et heure de debut: ${meetingStart}</p>`
         );

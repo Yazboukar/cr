@@ -30,11 +30,11 @@ export async function sendEmail(to: string, subject: string, html: string) {
 }
 
 export async function sendNotification(notification: any) {
-  const user = await prisma.user.findUnique({ where: { id: notification.userId } });
-  if (!user) throw new Error('User not found');
+  const contact = await prisma.contact.findUnique({ where: { id: notification.contactId } });
+  if (!contact) throw new Error('Contact not found');
 
   if (notification.channel === 'EMAIL') {
-    return sendEmail(user.email, 'Rappel réunion — MeetingFlow', `<p>Rappel: réunion prévue le ${notification.scheduledAt.toISOString()}</p>`);
+    return sendEmail(contact.email, 'Rappel réunion — MeetingFlow', `<p>Rappel: réunion prévue le ${notification.scheduledAt.toISOString()}</p>`);
   }
 
   // For IN_APP notifications we could create an activity item — already stored in the DB

@@ -110,7 +110,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             id: true,
             status: true,
             role: true,
-            user: { select: { id: true, name: true, email: true } },
+            contact: { select: { id: true, name: true, email: true } },
           },
         },
         attachments: true,

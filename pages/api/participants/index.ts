@@ -10,8 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const session = await requireRole(req, res, ['ADMIN', 'ORGANIZER']);
     if (!session) return;
 
-    const participants = await prisma.user.findMany({
-      where: { role: 'PARTICIPANT' },
+    const participants = await prisma.contact.findMany({
       orderBy: [{ name: 'asc' }, { email: 'asc' }],
       select: {
         id: true,
@@ -44,17 +43,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Email invalide' });
     }
 
-    const participant = await prisma.user.upsert({
+    const participant = await prisma.contact.upsert({
       where: { email },
-      // Do not touch role on update: avoids downgrading an existing
-      // ADMIN/ORGANIZER when their email is re-added to the directory.
       update: {
         name: name || undefined,
       },
       create: {
         name: name || null,
         email,
-        role: 'PARTICIPANT',
       },
       select: {
         id: true,

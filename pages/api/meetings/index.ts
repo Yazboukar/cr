@@ -20,12 +20,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const role = session.user.role;
     const userId = session.user.id;
-    // Admins see everything; everyone else is scoped to meetings they organize
-    // or take part in (prevents reading other people's meetings and emails).
-    const where =
-      role === 'ADMIN'
-        ? {}
-        : { OR: [{ organizerId: userId }, { participants: { some: { userId } } }] };
+    // Participants are contacts without accounts, so the only non-admin readers
+    // are organizers: scope them to the meetings they own.
+    const where = role === 'ADMIN' ? {} : { organizerId: userId };
 
     // Opt-in pagination (defaults to all scoped meetings for backward compat
     // with the dashboard aggregates that count over the full set).
@@ -53,7 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         organizerId: true,
         organizer: { select: { id: true, name: true, email: true } },
         participants: {
-          select: { id: true, status: true, user: { select: { id: true, name: true, email: true } } },
+          select: { id: true, status: true, contact: { select: { id: true, name: true, email: true } } },
         },
         report: { select: { id: true, actionItems: { select: { done: true } } } },
       },
@@ -195,41 +192,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         for (const value of participantValues) {
           if (value.includes('@')) {
-            const participantUser = await tx.user.upsert({
+            const contact = await tx.contact.upsert({
               where: { email: value.toLowerCase() },
-              // Never alter an existing user's role here: adding someone as a
-              // participant must not downgrade an ADMIN/ORGANIZER account.
               update: {},
-              create: {
-                email: value.toLowerCase(),
-                role: 'PARTICIPANT',
-              },
+              create: { email: value.toLowerCase() },
               select: { id: true },
             });
 
-            participantIds.push(participantUser.id);
+            participantIds.push(contact.id);
             continue;
           }
 
-          const participantUser = await tx.user.findUnique({
+          const contact = await tx.contact.findUnique({
             where: { id: value },
             select: { id: true },
           });
 
-          if (!participantUser) {
+          if (!contact) {
             throw new Error(`Participant introuvable: ${value}`);
           }
 
-          participantIds.push(participantUser.id);
+          participantIds.push(contact.id);
         }
 
         const uniqueParticipantIds = Array.from(new Set(participantIds));
 
         if (uniqueParticipantIds.length > 0) {
           await tx.meetingParticipant.createMany({
-            data: uniqueParticipantIds.map((userId) => ({
+            data: uniqueParticipantIds.map((contactId) => ({
               meetingId: createdMeeting.id,
-              userId,
+              contactId,
             })),
             skipDuplicates: true,
           });
@@ -238,10 +230,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const reminderTimes = buildReminderTimes(meetingStart as Date);
         if (reminderTimes.length > 0 && uniqueParticipantIds.length > 0) {
           await tx.notification.createMany({
-            data: uniqueParticipantIds.flatMap((userId) =>
+            data: uniqueParticipantIds.flatMap((contactId) =>
               reminderTimes.map((scheduledAt) => ({
                 meetingId: createdMeeting.id,
-                userId,
+                contactId,
                 channel: 'EMAIL' as const,
                 scheduledAt,
               }))

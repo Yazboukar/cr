@@ -31,26 +31,24 @@ describe('userCanAccessMeeting', () => {
     expect(findFirst).not.toHaveBeenCalled();
   });
 
-  it('grants access when the user is organizer or participant', async () => {
+  it('grants access when the user is the organizer', async () => {
     findFirst.mockResolvedValue({ id: 'm1' });
-    expect(await userCanAccessMeeting(makeSession('PARTICIPANT'), 'm1')).toBe(true);
+    expect(await userCanAccessMeeting(makeSession('ORGANIZER'), 'm1')).toBe(true);
     expect(findFirst).toHaveBeenCalledTimes(1);
   });
 
-  it('denies access when no membership row matches', async () => {
+  it('denies access when the user does not organize the meeting', async () => {
     findFirst.mockResolvedValue(null);
     expect(await userCanAccessMeeting(makeSession('ORGANIZER'), 'm1')).toBe(false);
   });
 
-  it('scopes the query to the user via organizer OR participant', async () => {
+  it('scopes the query to the meeting organized by the user', async () => {
     findFirst.mockResolvedValue(null);
-    await userCanAccessMeeting(makeSession('PARTICIPANT', 'user-42'), 'meeting-7');
+    await userCanAccessMeeting(makeSession('ORGANIZER', 'user-42'), 'meeting-7');
     const arg = findFirst.mock.calls[0][0];
     expect(arg.where.id).toBe('meeting-7');
-    expect(arg.where.OR).toEqual([
-      { organizerId: 'user-42' },
-      { participants: { some: { userId: 'user-42' } } },
-    ]);
+    expect(arg.where.organizerId).toBe('user-42');
+    expect(arg.where.OR).toBeUndefined();
   });
 });
 

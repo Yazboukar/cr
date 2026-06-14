@@ -43,16 +43,14 @@ export async function requireOrganizerOrAdmin(
 
 /**
  * Returns true if the session user may read a meeting: admins see everything,
- * otherwise the user must be the organizer or one of its participants.
+ * otherwise only the organizer. Participants are contacts without accounts, so
+ * they are never the authenticated reader.
  */
 export async function userCanAccessMeeting(session: Session, meetingId: string) {
   const { role, id: userId } = session.user;
   if (role === 'ADMIN') return true;
   const meeting = await prisma.meeting.findFirst({
-    where: {
-      id: meetingId,
-      OR: [{ organizerId: userId }, { participants: { some: { userId } } }],
-    },
+    where: { id: meetingId, organizerId: userId },
     select: { id: true },
   });
   return Boolean(meeting);

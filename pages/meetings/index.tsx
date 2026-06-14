@@ -73,8 +73,8 @@ function buildSearchHaystack(meeting: any) {
       meeting.organizer?.name,
       meeting.organizer?.email,
       ...(meeting.participants || []).flatMap((participant: any) => [
-        participant.user?.name,
-        participant.user?.email,
+        participant.contact?.name,
+        participant.contact?.email,
         participant.status,
       ]),
     ].join(' ')

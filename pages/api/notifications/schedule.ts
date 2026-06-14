@@ -39,7 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       data: meeting.participants.flatMap((participant) =>
         times.map((scheduledAt) => ({
           meetingId: meeting.id,
-          userId: participant.userId,
+          contactId: participant.contactId,
           channel: 'EMAIL' as const,
           scheduledAt,
         }))
