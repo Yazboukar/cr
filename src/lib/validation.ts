@@ -134,8 +134,25 @@ export function safeExportFilename(value: string, fallback: string) {
   const normalized = value
     .trim()
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+    // Drop non-ASCII (accents, em dash, …) so the result is safe to put in an
+    // HTTP header value verbatim — non-ASCII chars throw ERR_INVALID_CHAR.
+    .replace(/[^\x20-\x7E]/g, '')
     .replace(/\s+/g, '_')
     .slice(0, 80);
 
   return normalized || fallback;
+}
+
+/**
+ * Builds an RFC 6266 / 5987 Content-Disposition value: an ASCII-safe `filename`
+ * for legacy clients plus a UTF-8 `filename*` so accented titles survive intact.
+ * `filename` is the desired name including its extension (e.g. "Réunion.pdf").
+ */
+export function attachmentHeader(filename: string, fallback: string) {
+  const dot = filename.lastIndexOf('.');
+  const base = dot > 0 ? filename.slice(0, dot) : filename;
+  const ext = dot > 0 ? filename.slice(dot) : '';
+  const asciiName = safeExportFilename(base, fallback) + ext;
+  const utf8Name = encodeURIComponent(filename);
+  return `attachment; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`;
 }

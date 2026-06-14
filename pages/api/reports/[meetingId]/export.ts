@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../../src/lib/prisma';
 import { generatePdf, generateDocx } from '../../../../services/export';
 import { requireAuth, requireMeetingAccess } from '../../../../src/lib/permissions';
-import { safeExportFilename } from '../../../../src/lib/validation';
+import { attachmentHeader } from '../../../../src/lib/validation';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { meetingId } = req.query as { meetingId: string };
@@ -18,12 +18,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (format === 'docx') {
     const buffer = await generateDocx({ title: report.title, content: report.content || '' });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="${safeExportFilename(report.title, 'rapport')}.docx"`);
+    res.setHeader('Content-Disposition', attachmentHeader(`${report.title}.docx`, 'rapport'));
     return res.send(buffer);
   }
 
   const pdf = await generatePdf({ title: report.title, content: report.content || '' });
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${safeExportFilename(report.title, 'rapport')}.pdf"`);
+  res.setHeader('Content-Disposition', attachmentHeader(`${report.title}.pdf`, 'rapport'));
   return res.send(pdf);
 }

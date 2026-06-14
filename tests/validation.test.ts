@@ -7,6 +7,7 @@ import {
   isValidEmail,
   normalizeEmail,
   safeExportFilename,
+  attachmentHeader,
 } from '../src/lib/validation';
 
 describe('parseZonedDate (wall-clock in tz -> UTC instant)', () => {
@@ -101,5 +102,31 @@ describe('safeExportFilename', () => {
 
   it('falls back when nothing usable remains', () => {
     expect(safeExportFilename('   ', 'fallback')).toBe('fallback');
+  });
+
+  it('strips non-ASCII so the result is HTTP-header-safe', () => {
+    const out = safeExportFilename('CR — Réunion test', 'rapport');
+    // eslint-disable-next-line no-control-regex
+    expect(out).toMatch(/^[\x20-\x7E]*$/);
+    expect(out).not.toBe('');
+  });
+});
+
+describe('attachmentHeader (RFC 6266/5987)', () => {
+  it('produces an ASCII-only header value even for accented titles', () => {
+    const header = attachmentHeader('CR — Réunion test fuseau.pdf', 'rapport');
+    // The whole header must be ASCII (this is what previously threw ERR_INVALID_CHAR)
+    // eslint-disable-next-line no-control-regex
+    expect(header).toMatch(/^[\x20-\x7E]*$/);
+    expect(header).toContain('filename="');
+    expect(header).toContain(".pdf");
+    // and it keeps the accented original in the UTF-8 variant
+    expect(header).toContain("filename*=UTF-8''");
+    expect(header).toContain(encodeURIComponent('CR — Réunion test fuseau.pdf'));
+  });
+
+  it('uses the fallback when the title has no ASCII characters', () => {
+    const header = attachmentHeader('日本語.pdf', 'rapport');
+    expect(header).toContain('filename="rapport.pdf"');
   });
 });
