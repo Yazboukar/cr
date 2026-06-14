@@ -175,7 +175,7 @@ export default function ParticipantsDirectory() {
                   Import Excel
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Importe une liste de participants depuis un fichier Excel basé sur le modèle fourni.
+                  Importez une liste de participants depuis un fichier Excel basé sur le modèle fourni.
                 </p>
               </div>
               <a className="btn-secondary" href="/api/participants/template">

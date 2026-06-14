@@ -7,10 +7,10 @@ export default function SignIn({ csrfToken }: { csrfToken: string | null }) {
         <section className="hero-card min-h-[420px]">
           <span className="eyebrow">Accès sécurisé</span>
           <h1 className="max-w-xl text-4xl font-semibold leading-tight md:text-5xl">
-            Connecte-toi à une interface claire pour piloter les réunions.
+            Connectez-vous à une interface claire pour piloter les réunions.
           </h1>
           <p className="mt-5 max-w-xl text-sm leading-7 text-emerald-50/82 md:text-base">
-            Accède au tableau de bord, aux invitations, aux présences et aux comptes rendus depuis un espace sécurisé.
+            Accédez au tableau de bord, aux invitations, aux présences et aux comptes rendus depuis un espace sécurisé.
           </p>
           <div className="mt-8 grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl bg-white/10 px-4 py-4">
@@ -41,7 +41,7 @@ export default function SignIn({ csrfToken }: { csrfToken: string | null }) {
             MeetingFlow
           </h2>
           <p className="mt-3 text-sm leading-7 text-slate-600">
-            Entre tes identifiants pour accéder au tableau de bord, aux réunions et aux comptes rendus.
+            Saisissez vos identifiants pour accéder au tableau de bord, aux réunions et aux comptes rendus.
           </p>
 
           <label className="label mt-6 block">

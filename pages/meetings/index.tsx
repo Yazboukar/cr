@@ -175,7 +175,7 @@ export default function MeetingsList() {
           </p>
           <h1 className="section-title mt-2">Toutes les réunions</h1>
           <p className="section-copy mt-4">
-            Retrouve rapidement une réunion selon plusieurs critères utiles à la coordination :
+            Retrouvez rapidement une réunion selon plusieurs critères utiles à la coordination :
             intitulé, statut, organisateur, période, lieu ou niveau de mobilisation.
           </p>
         </div>
@@ -194,7 +194,7 @@ export default function MeetingsList() {
               Recherche avancée
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Combine plusieurs filtres pour retrouver plus vite une réunion précise.
+              Combinez plusieurs filtres pour retrouver plus vite une réunion précise.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -309,7 +309,7 @@ export default function MeetingsList() {
             Aucun résultat ne correspond à ces critères.
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Élargis la recherche ou retire un filtre pour retrouver plus de réunions.
+            Élargissez la recherche ou retirez un filtre pour retrouver plus de réunions.
           </p>
         </div>
       )}

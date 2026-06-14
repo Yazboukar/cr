@@ -135,7 +135,7 @@ export default function CreateMeeting() {
           </p>
           <h1 className="section-title mt-2">Créer une réunion</h1>
           <p className="section-copy mt-4">
-            Prépare une fiche complète avec date, lieu, participants et agenda pour garder une organisation claire des séances à venir.
+            Préparez une fiche complète avec date, lieu, participants et agenda pour garder une organisation claire des séances à venir.
           </p>
         </div>
         <aside className="hero-aside">
@@ -143,7 +143,7 @@ export default function CreateMeeting() {
             Conseil
           </p>
           <p className="mt-3 text-sm leading-7 text-slate-600">
-            Sélectionne d&apos;abord les participants déjà enregistrés dans la base, puis ajoute au besoin
+            Sélectionnez d&apos;abord les participants déjà enregistrés dans la base, puis ajoutez au besoin
             des emails ponctuels séparés par des virgules.
           </p>
         </aside>
@@ -318,7 +318,7 @@ export default function CreateMeeting() {
               </div>
             ) : (
               <div className="rounded-2xl border border-emerald-950/8 bg-white/70 px-4 py-4 text-sm leading-6 text-slate-600">
-            Aucun participant enregistré pour le moment. Ajoute-les d&apos;abord depuis la page
+            Aucun participant enregistré pour le moment. Ajoutez-les d&apos;abord depuis la page
                 Participants.
               </div>
             )}
@@ -337,7 +337,7 @@ export default function CreateMeeting() {
               placeholder="alice@example.com, bob@example.com"
             />
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Utilise ce champ pour des adresses email ponctuelles non encore présentes dans la base.
+              Utilisez ce champ pour des adresses email ponctuelles non encore présentes dans la base.
             </p>
             {fieldErrors.participants ? <p className="mt-2 text-sm text-red-700">{fieldErrors.participants}</p> : null}
           </label>
