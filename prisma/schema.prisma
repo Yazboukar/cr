@@ -77,6 +77,7 @@ model Meeting {
   endTime     DateTime?
   location    String?
   agenda      String?
+  timezone    String?
   status      MeetingStatus @default(PLANNED)
   organizerId String
   organizer   User     @relation(fields: [organizerId], references: [id])
@@ -86,6 +87,10 @@ model Meeting {
   notifications Notification[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([date])
+  @@index([status])
+  @@index([organizerId])
 }
 
 model MeetingParticipant {
@@ -97,6 +102,10 @@ model MeetingParticipant {
   status    ParticipantStatus @default(INVITED)
   role      String?
   createdAt DateTime @default(now())
+
+  @@unique([meetingId, userId])
+  @@index([userId])
+  @@index([status])
 }
 
 model Notification {
@@ -110,6 +119,10 @@ model Notification {
   sentAt      DateTime?
   status      NotificationStatus @default(PENDING)
   createdAt   DateTime @default(now())
+
+  @@index([status, scheduledAt])
+  @@index([meetingId])
+  @@index([userId])
 }
 
 model Report {
@@ -138,6 +151,10 @@ model ReportActionItem {
   dueDate     DateTime?
   done        Boolean  @default(false)
   createdAt   DateTime @default(now())
+
+  @@index([reportId])
+  @@index([ownerId])
+  @@index([done])
 }
 
 model Attachment {
@@ -162,4 +179,8 @@ model AuditLog {
   actor     User?    @relation(fields: [actorId], references: [id])
   timestamp DateTime @default(now())
   diff      Json?
+
+  @@index([model, modelId])
+  @@index([actorId])
+  @@index([timestamp])
 }

@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../../src/lib/prisma';
 import { generatePdf, generateDocx } from '../../../../services/export';
-import { requireAuth } from '../../../../src/lib/permissions';
+import { requireAuth, requireMeetingAccess } from '../../../../src/lib/permissions';
+import { safeExportFilename } from '../../../../src/lib/validation';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { meetingId } = req.query as { meetingId: string };
@@ -9,19 +10,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const session = await requireAuth(req, res);
   if (!session) return;
+  if (!(await requireMeetingAccess(res, session, meetingId))) return;
 
   const report = await prisma.report.findUnique({ where: { meetingId } });
-  if (!report) return res.status(404).json({ error: 'Report not found' });
+  if (!report) return res.status(404).json({ error: 'Compte rendu introuvable' });
 
   if (format === 'docx') {
     const buffer = await generateDocx({ title: report.title, content: report.content || '' });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="${report.title.replace(/\s+/g, '_')}.docx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeExportFilename(report.title, 'rapport')}.docx"`);
     return res.send(buffer);
   }
 
   const pdf = await generatePdf({ title: report.title, content: report.content || '' });
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${report.title.replace(/\s+/g, '_')}.pdf"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${safeExportFilename(report.title, 'rapport')}.pdf"`);
   return res.send(pdf);
 }

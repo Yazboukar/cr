@@ -1,75 +1,137 @@
-# MeetingFlow — MVP
+# MeetingFlow - MVP
 
-Minimal Meeting & report management app (MVP) built with Next.js, TypeScript, Tailwind, Prisma and PostgreSQL.
+MeetingFlow is a meeting management MVP built with Next.js, TypeScript, Tailwind CSS, Prisma, PostgreSQL, and NextAuth.
 
-Quick start (local)
+The current codebase already includes:
 
-1. Copy env: `cp .env.example .env` and fill values.
-2. Install dependencies: `npm install`.
-3. Run database migrations: `npx prisma migrate dev --name init`.
-4. Seed demo data: `npm run prisma:seed`.
-5. Start dev server: `npm run dev`.
-6. Optional: run scheduler in separate terminal: `npm run scheduler`.
+- authenticated access with role information in session
+- meeting dashboard with summary cards and upcoming sessions
+- meeting directory with advanced filters and sorting
+- meeting creation with agenda, location, schedule, registered participants, and ad hoc emails
+- participant directory with manual creation and Excel import
+- report pages and export endpoints
+- scheduled notification records for invited participants
+- Docker files for local and production-style deployment
 
-Docker (local)
+## Stack
 
-- Build and start services: `docker-compose up --build`.
-- The app will be available at `http://localhost:3000` and Postgres on port `5432`.
-- After the DB is up you may need to run migrations inside the container or from host:
+- Next.js 14
+- React 18
+- TypeScript
+- Tailwind CSS
+- Prisma
+- PostgreSQL
+- NextAuth credentials provider
+- `xlsx`, `docx`, `puppeteer`, `nodemailer`
+
+## Local setup
+
+1. Create a `.env` file with at least:
+
+```env
+DATABASE_URL="postgresql://postgres:password@localhost:5432/meetingflow?schema=public"
+NEXTAUTH_SECRET="replace-with-a-long-random-secret"
+NEXTAUTH_URL="http://localhost:3000"
+```
+
+2. Install dependencies:
 
 ```bash
-# from host (if you have prisma installed locally)
-export DATABASE_URL="postgresql://postgres:password@localhost:5432/meetingflow?schema=public"
+npm install
+```
+
+3. Apply the Prisma migration:
+
+```bash
 npx prisma migrate deploy
+```
+
+For a fresh local database, `npx prisma migrate dev --name init` also works.
+
+4. Seed demo data:
+
+```bash
 npm run prisma:seed
 ```
 
-What is included
-
-- Basic Next.js + TypeScript scaffold
-- Tailwind CSS styling
-- Prisma schema and seed script with demo data
-- Auth via NextAuth (Credentials provider) and Prisma adapter
-- API endpoints for meetings, reports, attachments, notifications
-- Scheduler script to process pending notifications (`scripts/scheduler.ts`)
-- Export utilities for PDF/DOCX (`services/export.ts`) using Puppeteer and `docx`
-- Dockerfile and `docker-compose.yml` for local development
-
-Next steps / MVP scope
-
-- Improve permissions and role-based access control
-- Add file upload storage (S3 or similar) for attachments
-- Add unit/integration tests
-- Improve UI/UX and mobile responsiveness
-- Add calendar view and filters
-
-Quick Deployment — Render (recommended)
-
-1. Push your repository to GitHub.
-2. Go to Render (https://dashboard.render.com) and create a new "Web Service".
-	- Connect your GitHub repo and select the branch to deploy.
-	- Choose "Docker" as the environment and leave the `Dockerfile` path as-is.
-3. Create a managed Postgres database on Render (Databases → New Database) and note the `DATABASE_URL`.
-4. In the Web Service settings, add environment variables:
-	- `DATABASE_URL` set to the managed DB connection string
-	- `NEXTAUTH_SECRET` (set a strong secret)
-	- `NEXTAUTH_URL` set to your Render service URL (https://your-service.onrender.com)
-5. Deploy — Render will build the Docker image and start the service. The entrypoint will apply migrations (if DB reachable) and start the Next.js server.
-
-Quick Deployment — VPS or Docker host
-
-1. Copy `docker-compose.prod.yml` to the server and update `DATABASE_URL` / secrets as needed.
-2. Run:
+5. Start the app:
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
+npm run dev
 ```
 
-3. The container will attempt to apply migrations at startup, then start the app on port `3000`.
+6. Optional: start the notification scheduler in another terminal:
 
-Notes
+```bash
+npm run scheduler
+```
 
-- The Docker image runs a migration step (`prisma migrate deploy`) at container startup if `DATABASE_URL` is set. For production control you may prefer to run migrations manually via a one-off job.
-- Ensure `NEXTAUTH_SECRET` is set to a secure random value in production.
-- If you deploy to Vercel, provide an external Postgres (Railway, Render DB, ElephantSQL) and set `DATABASE_URL` in Vercel project settings.
+## Demo accounts
 
+The seed creates these users:
+
+- `admin@example.com` / `adminpass`
+- `organizer@example.com` / `organizerpass`
+- `participant@example.com` / `participantpass`
+
+## Main routes
+
+- `/` dashboard
+- `/meetings` meeting list with filters
+- `/meetings/create` meeting creation form
+- `/participants` participant directory and Excel import
+- `/calendar` placeholder calendar page
+- `/reports/[meetingId]` report view
+- `/auth/signin` custom sign-in page
+
+## Participant import
+
+The participant directory accepts Excel files and exposes a template at:
+
+- `public/templates/participants-import-template.xlsx`
+
+Expected columns:
+
+- `Nom`
+- `Email`
+
+## API overview
+
+- `GET/POST /api/meetings`
+- `GET /api/meetings/[id]`
+- `GET/POST /api/participants`
+- `POST /api/participants/import`
+- `GET/POST /api/reports/[meetingId]`
+- `GET /api/reports/[meetingId]/export`
+- `POST /api/notifications/schedule`
+- `GET /api/health`
+
+Most API routes require authentication. Creation endpoints are restricted to `ADMIN` and `ORGANIZER`.
+
+## Docker
+
+Local development with Docker:
+
+```bash
+docker compose up --build
+```
+
+The app runs on `http://localhost:3000`. PostgreSQL is exposed on `localhost:5432`.
+
+The container entrypoint attempts to run Prisma migrations before starting Next.js.
+
+## Build verification
+
+Production build check:
+
+```bash
+npm run build
+```
+
+This passes on the current repository state.
+
+## Notes
+
+- The calendar page is still a placeholder.
+- File storage is still local/logical only; no S3 integration is present.
+- There are no automated tests configured yet.

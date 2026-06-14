@@ -3,10 +3,14 @@ import Header from './Header';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen">
       <Header />
-      <main className="container mx-auto p-4 flex-1">{children}</main>
-      <footer className="py-4 text-center text-sm text-gray-500">MeetingFlow — MVP</footer>
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        {children}
+      </main>
+      <footer className="px-4 pb-8 pt-2 text-center text-sm text-slate-500 sm:px-6 lg:px-8">
+        Plateforme de coordination, de suivi et de compte rendu.
+      </footer>
     </div>
   );
 };
