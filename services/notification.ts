@@ -29,6 +29,28 @@ export async function sendEmail(to: string, subject: string, html: string) {
   return info;
 }
 
+function appBaseUrl() {
+  return process.env.NEXTAUTH_URL || 'http://localhost:3000';
+}
+
+export async function sendPasswordResetEmail(to: string, token: string) {
+  const link = `${appBaseUrl()}/auth/reset?token=${token}`;
+  return sendEmail(
+    to,
+    'Réinitialisation de votre mot de passe — MeetingFlow',
+    `<p>Bonjour,</p><p>Pour réinitialiser votre mot de passe, cliquez sur le lien ci-dessous (valable 1 heure) :</p><p><a href="${link}">${link}</a></p><p>Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.</p>`
+  );
+}
+
+export async function sendInviteEmail(to: string, token: string, role: string) {
+  const link = `${appBaseUrl()}/auth/reset?token=${token}`;
+  return sendEmail(
+    to,
+    'Invitation à MeetingFlow',
+    `<p>Bonjour,</p><p>Un compte « ${role} » vous a été créé sur MeetingFlow. Définissez votre mot de passe via le lien ci-dessous (valable 72 heures) :</p><p><a href="${link}">${link}</a></p>`
+  );
+}
+
 export async function sendNotification(notification: any) {
   const contact = await prisma.contact.findUnique({ where: { id: notification.contactId } });
   if (!contact) throw new Error('Contact not found');

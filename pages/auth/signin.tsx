@@ -56,6 +56,12 @@ export default function SignIn({ csrfToken }: { csrfToken: string | null }) {
           <button type="submit" className="btn mt-6 w-full">
             Se connecter
           </button>
+
+          <p className="mt-4 text-center text-sm text-slate-600">
+            <a href="/auth/forgot" className="card-link">
+              Mot de passe oublié ?
+            </a>
+          </p>
         </form>
       </div>
     </div>

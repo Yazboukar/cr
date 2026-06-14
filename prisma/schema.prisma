@@ -49,6 +49,11 @@ enum ReportStatus {
   ARCHIVED
 }
 
+enum AccountTokenType {
+  PASSWORD_RESET
+  INVITE
+}
+
 model User {
   id             String   @id @default(cuid())
   email          String   @unique
@@ -62,6 +67,22 @@ model User {
   reports        Report[]
   auditLogs      AuditLog[]
   uploadedAttachments Attachment[]
+  accountTokens  AccountToken[]
+}
+
+// Single-use tokens for password reset and staff-account invitations. Only the
+// SHA-256 hash of the token is stored; the raw token travels in the email link.
+model AccountToken {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  type      AccountTokenType
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 // Directory of people who can be invited to meetings. A Contact is NOT an
