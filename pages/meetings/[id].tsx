@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { FormEvent, useState } from 'react';
+import { ChangeEvent, FormEvent, useState } from 'react';
 import { useRouter } from 'next/router';
 import useSWR from 'swr';
 import { meetingStatusLabels, participantStatusLabels } from '../../src/lib/meetings';
@@ -24,6 +24,36 @@ export default function MeetingDetail() {
   const [newParticipantEmail, setNewParticipantEmail] = useState('');
   const [addingParticipant, setAddingParticipant] = useState(false);
   const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
+
+  async function handleUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      const response = await fetch('/api/attachments/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name, data: dataUrl, meetingId: meeting.id }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        setError(payload?.error || "Le document n'a pas pu être importé.");
+      } else {
+        await mutate();
+      }
+    } finally {
+      setUploading(false);
+      event.target.value = '';
+    }
+  }
 
   if (isLoading || !meeting) {
     return <div className="page-shell text-sm text-slate-600">Chargement de la réunion...</div>;
@@ -315,6 +345,30 @@ export default function MeetingDetail() {
             <p className="mt-3 text-lg font-semibold text-[color:var(--brand-green-900)]">
               {meeting.organizer?.name || meeting.organizer?.email || 'Non défini'}
             </p>
+          </section>
+
+          <section className="panel">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-800/70">
+              Documents
+            </p>
+            {meeting.attachments?.length ? (
+              <ul className="mt-3 space-y-2">
+                {meeting.attachments.map((attachment: any) => (
+                  <li key={attachment.id} className="truncate">
+                    <a className="card-link" href={`/api/attachments/${attachment.id}`}>
+                      {attachment.filename}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-sm text-slate-600">Aucun document attaché.</p>
+            )}
+            <label className="btn-secondary mt-4 inline-flex cursor-pointer">
+              {uploading ? 'Import en cours…' : 'Importer un document'}
+              <input type="file" className="hidden" disabled={uploading} onChange={handleUpload} />
+            </label>
+            <p className="mt-2 text-xs text-slate-500">Taille maximale : 8 Mo.</p>
           </section>
         </aside>
       </div>
