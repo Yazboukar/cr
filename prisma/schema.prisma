@@ -166,6 +166,9 @@ model Report {
   content     String?
   status      ReportStatus @default(DRAFT)
   recipient   String?
+  documentType String  @default("Compte rendu")
+  template     String  @default("OFFICIAL")
+  layout       Json?
   authorId    String
   author      User     @relation("ReportAuthor", fields: [authorId], references: [id])
   submittedAt  DateTime?

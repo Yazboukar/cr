@@ -9,6 +9,12 @@ import {
   isReportEditable,
   type ReportAction,
 } from '../../src/lib/reportWorkflow';
+import {
+  resolveLayout,
+  templateLabels,
+  TEMPLATE_KEYS,
+  DOCUMENT_TYPE_SUGGESTIONS,
+} from '../../src/lib/documentTemplates';
 
 const fetcher = async (url: string) => {
   const response = await fetch(url);
@@ -46,6 +52,9 @@ export default function ReportEditor() {
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
   const [recipient, setRecipient] = useState('');
+  const [documentType, setDocumentType] = useState('Compte rendu');
+  const [template, setTemplate] = useState('OFFICIAL');
+  const [layout, setLayout] = useState<Record<string, any>>({});
   const [status, setStatus] = useState('DRAFT');
   const [actionItems, setActionItems] = useState<ActionItemForm[]>([
     { description: '', ownerId: '', dueDate: '', done: false },
@@ -60,6 +69,9 @@ export default function ReportEditor() {
     setSummary(report.summary || '');
     setContent(report.content || '');
     setRecipient(report.recipient || '');
+    setDocumentType(report.documentType || 'Compte rendu');
+    setTemplate(report.template || 'OFFICIAL');
+    setLayout(report.layout && typeof report.layout === 'object' ? report.layout : {});
     setStatus(report.status || 'DRAFT');
     setActionItems(
       report.actionItems?.length
@@ -100,6 +112,9 @@ export default function ReportEditor() {
         summary,
         content,
         recipient,
+        documentType,
+        template,
+        layout,
         actionItems: actionItems.filter((item) => item.description.trim().length > 0),
       }),
     });
@@ -123,6 +138,30 @@ export default function ReportEditor() {
 
   const participants = meeting?.participants || [];
   const editable = isReportEditable(status, role);
+  const effectiveLayout = resolveLayout(template, layout);
+  const sectionToggles: { key: string; label: string }[] = [
+    { key: 'showHeader', label: 'En-tête' },
+    { key: 'showEmblem', label: 'Blason' },
+    { key: 'showRecipient', label: 'Destinataire' },
+    { key: 'showObjet', label: 'Objet' },
+    { key: 'showDate', label: 'Date / lieu' },
+    { key: 'showApproval', label: "Tampon d'approbation" },
+    { key: 'showSignatory', label: 'Signataire' },
+  ];
+  function changeTemplate(value: string) {
+    setTemplate(value);
+    setLayout((current) => {
+      const next: Record<string, any> = { ...current };
+      sectionToggles.forEach(({ key }) => delete next[key]);
+      return next;
+    });
+  }
+  function setOverride(field: string, value: string) {
+    setLayout((current) => ({ ...current, [field]: value }));
+  }
+  function setToggle(key: string, value: boolean) {
+    setLayout((current) => ({ ...current, [key]: value }));
+  }
   const workflowActions: ReportAction[] = report
     ? availableActions(report.status, {
         role,
@@ -181,6 +220,97 @@ export default function ReportEditor() {
       <form onSubmit={handleSave} className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section className="panel">
           <fieldset disabled={!editable} className="contents">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-800/70">
+            Format du document
+          </p>
+          <div className="form-grid mt-3">
+            <label className="label">
+              Type de document
+              <input
+                className="input"
+                list="doctypes"
+                value={documentType}
+                onChange={(event) => setDocumentType(event.target.value)}
+              />
+              <datalist id="doctypes">
+                {DOCUMENT_TYPE_SUGGESTIONS.map((suggestion) => (
+                  <option key={suggestion} value={suggestion} />
+                ))}
+              </datalist>
+            </label>
+            <label className="label">
+              Modèle
+              <select
+                className="input"
+                value={template}
+                onChange={(event) => changeTemplate(event.target.value)}
+              >
+                {TEMPLATE_KEYS.map((key) => (
+                  <option key={key} value={key}>
+                    {templateLabels[key]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {effectiveLayout.showHeader ? (
+            <div className="form-grid mt-3">
+              <label className="label">
+                Ministère
+                <input
+                  className="input"
+                  value={layout.ministry || ''}
+                  placeholder="Défaut de l'organisation"
+                  onChange={(event) => setOverride('ministry', event.target.value)}
+                />
+              </label>
+              <label className="label">
+                Service / Direction
+                <input
+                  className="input"
+                  value={layout.department || ''}
+                  placeholder="Secrétariat Général"
+                  onChange={(event) => setOverride('department', event.target.value)}
+                />
+              </label>
+              <label className="label">
+                Lieu
+                <input
+                  className="input"
+                  value={layout.place || ''}
+                  placeholder="Lomé"
+                  onChange={(event) => setOverride('place', event.target.value)}
+                />
+              </label>
+              <label className="label">
+                Signataire
+                <input
+                  className="input"
+                  value={layout.signatory || ''}
+                  placeholder="Auteur par défaut"
+                  onChange={(event) => setOverride('signatory', event.target.value)}
+                />
+              </label>
+            </div>
+          ) : null}
+
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-700">
+            {sectionToggles.map(({ key, label }) => (
+              <label key={key} className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-emerald-700"
+                  checked={Boolean((effectiveLayout as any)[key])}
+                  onChange={(event) => setToggle(key, event.target.checked)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+
+          <div className="my-5 h-px bg-emerald-950/10" />
+
           <div className="form-grid">
             <label className="label">
               Objet

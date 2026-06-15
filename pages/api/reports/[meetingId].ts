@@ -4,6 +4,7 @@ import { requireAuth, requireMeetingAccess, requireRole } from '../../../src/lib
 import { normalizeOptionalString, normalizeString } from '../../../src/lib/validation';
 import { logAction } from '../../../src/lib/audit';
 import { isReportEditable } from '../../../src/lib/reportWorkflow';
+import { normalizeTemplate, sanitizeLayout } from '../../../src/lib/documentTemplates';
 
 function normalizeActionItems(value: unknown) {
   if (!Array.isArray(value)) {
@@ -51,6 +52,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const content = normalizeOptionalString(req.body?.content);
     const summary = normalizeOptionalString(req.body?.summary);
     const recipient = normalizeOptionalString(req.body?.recipient);
+    const documentType = normalizeString(req.body?.documentType) || 'Compte rendu';
+    const template = normalizeTemplate(req.body?.template);
+    const layout = sanitizeLayout(req.body?.layout);
     const actionItems = normalizeActionItems(req.body?.actionItems);
 
     if (!title) {
@@ -82,7 +86,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const updated = await prisma.$transaction(async (tx) => {
         const report = await tx.report.update({
           where: { id: existing.id },
-          data: { title, content, summary, recipient },
+          data: { title, content, summary, recipient, documentType, template, layout },
         });
 
         await tx.reportActionItem.deleteMany({ where: { reportId: existing.id } });
@@ -111,6 +115,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         summary,
         content,
         recipient,
+        documentType,
+        template,
+        layout,
         author: { connect: { id: session.user.id } },
         actionItems: {
           create: actionItems.map((item) => ({

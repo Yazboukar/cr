@@ -5,6 +5,7 @@ import { prisma } from '../../../../src/lib/prisma';
 import { generatePdf, generateDocx } from '../../../../services/export';
 import { requireAuth, requireMeetingAccess } from '../../../../src/lib/permissions';
 import { attachmentHeader } from '../../../../src/lib/validation';
+import { resolveLayout } from '../../../../src/lib/documentTemplates';
 
 // Optional official coat of arms: drop a PNG at public/emblem.png to embed it in
 // the letterhead (inlined as a data URI so the sandboxed renderer can load it).
@@ -36,6 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!report) return res.status(404).json({ error: 'Compte rendu introuvable' });
 
   const meta = {
+    documentType: report.documentType,
     status: report.status,
     approvedByName: report.approvedBy?.name || report.approvedBy?.email || null,
     approvedAt: report.approvedAt,
@@ -44,6 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     authorName: report.author?.name || report.author?.email || null,
     documentDate: report.approvedAt || report.createdAt,
     emblemDataUri: readEmblem(),
+    layout: resolveLayout(report.template, report.layout),
   };
 
   if (format === 'docx') {

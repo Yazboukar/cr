@@ -2,6 +2,7 @@ import puppeteer, { Browser } from 'puppeteer';
 import { Document, Packer, Paragraph, TextRun, AlignmentType } from 'docx';
 import { escapeHtml } from '../src/lib/validation';
 import { orgInfo, formatLongFrDate } from '../src/lib/org';
+import { LayoutConfig, resolveLayout } from '../src/lib/documentTemplates';
 
 // Reuse a single Chromium instance across requests.
 let browserPromise: Promise<Browser> | null = null;
@@ -16,6 +17,7 @@ async function getBrowser() {
 }
 
 export type ReportMeta = {
+  documentType?: string | null;
   status?: string;
   approvedByName?: string | null;
   approvedAt?: Date | string | null;
@@ -24,16 +26,33 @@ export type ReportMeta = {
   authorName?: string | null;
   documentDate?: Date | string | null;
   emblemDataUri?: string | null;
+  layout?: LayoutConfig;
 };
 
 const TRICOLOR = 'linear-gradient(90deg,#006a4e 0 40%,#ffce00 40% 70%,#d21034 70%)';
 
-function headerHtml(meta: ReportMeta): string {
+function mergedHeader(layout: LayoutConfig) {
   const org = orgInfo();
+  return {
+    country: org.country,
+    ministry: layout.ministry || org.ministry,
+    department: layout.department || org.department,
+    place: layout.place || org.place,
+  };
+}
+
+function headerHtml(meta: ReportMeta, layout: LayoutConfig): string {
+  const h = mergedHeader(layout);
   const date = meta.documentDate ? formatLongFrDate(new Date(meta.documentDate)) : '';
-  const emblem = meta.emblemDataUri
-    ? `<img src="${meta.emblemDataUri}" style="width:74px;height:auto" alt="" />`
-    : `<div style="width:62px;height:62px;border-radius:50%;border:2px solid #006a4e;display:flex;align-items:center;justify-content:center;color:#006a4e;font-weight:bold;font-size:11px">RT</div>`;
+  const emblem = layout.showEmblem
+    ? meta.emblemDataUri
+      ? `<img src="${meta.emblemDataUri}" style="width:74px;height:auto" alt="" />`
+      : `<div style="width:62px;height:62px;border-radius:50%;border:2px solid #006a4e;display:flex;align-items:center;justify-content:center;color:#006a4e;font-weight:bold;font-size:11px">RT</div>`
+    : '';
+
+  const dateBlock = layout.showDate
+    ? `<div style="font-size:11px;color:#333;margin-top:24px">${escapeHtml(date)}<br/>à ${escapeHtml(h.place)}</div>`
+    : '';
 
   return `
     <table style="width:100%;border-collapse:collapse">
@@ -42,21 +61,19 @@ function headerHtml(meta: ReportMeta): string {
           <div style="display:flex;gap:12px;align-items:center">
             ${emblem}
             <div>
-              <div style="font-weight:bold;font-size:13px;color:#0f3b2e">${escapeHtml(org.country)}</div>
+              <div style="font-weight:bold;font-size:13px;color:#0f3b2e">${escapeHtml(h.country)}</div>
               <div style="height:3px;width:96px;background:${TRICOLOR};margin:4px 0"></div>
             </div>
           </div>
           <div style="font-size:10px;color:#333;margin-top:8px;max-width:330px;line-height:1.35">${escapeHtml(
-            org.ministry
+            h.ministry
           )}</div>
         </td>
         <td style="vertical-align:top;text-align:right;width:38%">
           <div style="font-weight:bold;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">${escapeHtml(
-            org.department
+            h.department
           )}</div>
-          <div style="font-size:11px;color:#333;margin-top:24px">${escapeHtml(date)}<br/>à ${escapeHtml(
-            org.place
-          )}</div>
+          ${dateBlock}
         </td>
       </tr>
     </table>
@@ -77,17 +94,19 @@ function approvalStampHtml(meta: ReportMeta): string {
   const label = meta.status === 'UNDER_REVIEW' ? 'En revue' : 'Projet';
   return `<div style="margin-top:36px;color:#9a3412;font-size:11px;font-style:italic">${escapeHtml(
     label
-  )} &mdash; compte rendu non approuvé</div>`;
+  )} &mdash; document non approuvé</div>`;
 }
 
 export async function generatePdf(
   report: { title: string; content?: string },
   meta: ReportMeta = {}
 ) {
+  const layout = meta.layout || resolveLayout('OFFICIAL', null);
+  const heading = escapeHtml(meta.documentType || 'Compte rendu');
   const safeContent = escapeHtml(report.content || '').replace(/\r?\n/g, '<br />');
   const objet = escapeHtml(meta.objet || report.title || '');
   const recipient = meta.recipient ? escapeHtml(meta.recipient) : '';
-  const signatory = meta.authorName ? escapeHtml(meta.authorName) : '';
+  const signatory = escapeHtml(layout.signatory || meta.authorName || '');
 
   const html = `
     <html>
@@ -96,18 +115,22 @@ export async function generatePdf(
         <style>body{font-family:Arial,sans-serif;padding:40px;color:#1f2937;font-size:13px}</style>
       </head>
       <body>
-        ${headerHtml(meta)}
-        <h1 style="text-align:center;font-size:18px;text-decoration:underline;margin:0 0 18px">Compte rendu</h1>
+        ${layout.showHeader ? headerHtml(meta, layout) : ''}
+        <h1 style="text-align:center;font-size:18px;text-decoration:underline;margin:0 0 18px">${heading}</h1>
         ${
-          recipient
+          layout.showRecipient && recipient
             ? `<p style="text-align:center;font-weight:bold;text-transform:uppercase;font-size:12px;line-height:1.4">À l'attention de ${recipient}</p>`
             : ''
         }
-        <p style="margin-top:16px"><span style="text-decoration:underline;font-weight:bold">Objet</span> : ${objet}</p>
-        <div style="margin-top:14px;line-height:1.6">${safeContent}</div>
-        ${approvalStampHtml(meta)}
         ${
-          signatory
+          layout.showObjet
+            ? `<p style="margin-top:16px"><span style="text-decoration:underline;font-weight:bold">Objet</span> : ${objet}</p>`
+            : ''
+        }
+        <div style="margin-top:14px;line-height:1.6">${safeContent}</div>
+        ${layout.showApproval ? approvalStampHtml(meta) : ''}
+        ${
+          layout.showSignatory && signatory
             ? `<p style="text-align:right;margin-top:64px;font-weight:600">${signatory}</p>`
             : ''
         }
@@ -122,8 +145,6 @@ export async function generatePdf(
     await page.setRequestInterception(true);
     page.on('request', (request) => {
       const url = request.url();
-      // Allow the main-frame document and inline data: assets (the emblem),
-      // block any outbound http/file request.
       if (
         (request.isNavigationRequest() && request.frame() === page.mainFrame()) ||
         url.startsWith('data:')
@@ -145,39 +166,54 @@ export async function generateDocx(
   report: { title: string; content?: string },
   meta: ReportMeta = {}
 ) {
-  const org = orgInfo();
+  const layout = meta.layout || resolveLayout('OFFICIAL', null);
+  const h = mergedHeader(layout);
+  const heading = meta.documentType || 'Compte rendu';
   const date = meta.documentDate ? formatLongFrDate(new Date(meta.documentDate)) : '';
   const objet = meta.objet || report.title || '';
+  const signatory = layout.signatory || meta.authorName || '';
 
-  const children: Paragraph[] = [
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: org.country, bold: true, size: 26, color: '006A4E' })],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: org.motto, italics: true, size: 16, color: '444444' })],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: org.ministry, size: 16 })],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.RIGHT,
-      children: [new TextRun({ text: org.department, bold: true, size: 18 })],
-    }),
-    new Paragraph({
-      alignment: AlignmentType.RIGHT,
-      children: [new TextRun({ text: date ? `${date} — à ${org.place}` : `à ${org.place}`, size: 16 })],
-    }),
-    new Paragraph({ text: '' }),
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: 'Compte rendu', bold: true, underline: {}, size: 28 })],
-    }),
-  ];
+  const children: Paragraph[] = [];
 
-  if (meta.recipient) {
+  if (layout.showHeader) {
+    const org = orgInfo();
+    children.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: h.country, bold: true, size: 26, color: '006A4E' })],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: org.motto, italics: true, size: 16, color: '444444' })],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: h.ministry, size: 16 })],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        children: [new TextRun({ text: h.department, bold: true, size: 18 })],
+      })
+    );
+    if (layout.showDate) {
+      children.push(
+        new Paragraph({
+          alignment: AlignmentType.RIGHT,
+          children: [new TextRun({ text: date ? `${date} — à ${h.place}` : `à ${h.place}`, size: 16 })],
+        })
+      );
+    }
+    children.push(new Paragraph({ text: '' }));
+  }
+
+  children.push(
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: heading, bold: true, underline: {}, size: 28 })],
+    })
+  );
+
+  if (layout.showRecipient && meta.recipient) {
     children.push(
       new Paragraph({
         alignment: AlignmentType.CENTER,
@@ -187,13 +223,17 @@ export async function generateDocx(
   }
 
   children.push(new Paragraph({ text: '' }));
-  children.push(
-    new Paragraph({ children: [new TextRun({ text: 'Objet : ', bold: true }), new TextRun({ text: objet })] })
-  );
-  children.push(new Paragraph({ text: '' }));
+
+  if (layout.showObjet) {
+    children.push(
+      new Paragraph({ children: [new TextRun({ text: 'Objet : ', bold: true }), new TextRun({ text: objet })] })
+    );
+    children.push(new Paragraph({ text: '' }));
+  }
+
   children.push(new Paragraph(report.content || ''));
 
-  if (meta.approvedAt) {
+  if (layout.showApproval && meta.approvedAt) {
     const when = new Date(meta.approvedAt).toLocaleDateString('fr-FR');
     children.push(new Paragraph({ text: '' }));
     children.push(
@@ -209,12 +249,12 @@ export async function generateDocx(
     );
   }
 
-  if (meta.authorName) {
+  if (layout.showSignatory && signatory) {
     children.push(new Paragraph({ text: '' }));
     children.push(
       new Paragraph({
         alignment: AlignmentType.RIGHT,
-        children: [new TextRun({ text: meta.authorName, bold: true })],
+        children: [new TextRun({ text: signatory, bold: true })],
       })
     );
   }
