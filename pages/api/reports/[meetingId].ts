@@ -50,6 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const title = normalizeString(req.body?.title);
     const content = normalizeOptionalString(req.body?.content);
     const summary = normalizeOptionalString(req.body?.summary);
+    const recipient = normalizeOptionalString(req.body?.recipient);
     const actionItems = normalizeActionItems(req.body?.actionItems);
 
     if (!title) {
@@ -81,7 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const updated = await prisma.$transaction(async (tx) => {
         const report = await tx.report.update({
           where: { id: existing.id },
-          data: { title, content, summary },
+          data: { title, content, summary, recipient },
         });
 
         await tx.reportActionItem.deleteMany({ where: { reportId: existing.id } });
@@ -109,6 +110,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         title,
         summary,
         content,
+        recipient,
         author: { connect: { id: session.user.id } },
         actionItems: {
           create: actionItems.map((item) => ({

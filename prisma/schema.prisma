@@ -165,6 +165,7 @@ model Report {
   summary     String?
   content     String?
   status      ReportStatus @default(DRAFT)
+  recipient   String?
   authorId    String
   author      User     @relation("ReportAuthor", fields: [authorId], references: [id])
   submittedAt  DateTime?

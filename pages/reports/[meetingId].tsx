@@ -45,6 +45,7 @@ export default function ReportEditor() {
   const [title, setTitle] = useState('Compte rendu');
   const [summary, setSummary] = useState('');
   const [content, setContent] = useState('');
+  const [recipient, setRecipient] = useState('');
   const [status, setStatus] = useState('DRAFT');
   const [actionItems, setActionItems] = useState<ActionItemForm[]>([
     { description: '', ownerId: '', dueDate: '', done: false },
@@ -58,6 +59,7 @@ export default function ReportEditor() {
     setTitle(report.title || 'Compte rendu');
     setSummary(report.summary || '');
     setContent(report.content || '');
+    setRecipient(report.recipient || '');
     setStatus(report.status || 'DRAFT');
     setActionItems(
       report.actionItems?.length
@@ -97,6 +99,7 @@ export default function ReportEditor() {
         title,
         summary,
         content,
+        recipient,
         actionItems: actionItems.filter((item) => item.description.trim().length > 0),
       }),
     });
@@ -180,7 +183,7 @@ export default function ReportEditor() {
           <fieldset disabled={!editable} className="contents">
           <div className="form-grid">
             <label className="label">
-              Titre
+              Objet
               <input className="input" required value={title} onChange={(event) => setTitle(event.target.value)} />
             </label>
             <div className="label">
@@ -193,6 +196,16 @@ export default function ReportEditor() {
               </div>
             </div>
           </div>
+
+          <label className="label mt-4 block">
+            Destinataire (À l&apos;attention de)
+            <input
+              className="input"
+              value={recipient}
+              onChange={(event) => setRecipient(event.target.value)}
+              placeholder="Monsieur le Secrétaire Général…"
+            />
+          </label>
 
           <label className="label mt-4 block">
             Synthese executive
