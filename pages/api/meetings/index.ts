@@ -52,7 +52,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         participants: {
           select: { id: true, status: true, contact: { select: { id: true, name: true, email: true } } },
         },
-        report: { select: { id: true, actionItems: { select: { done: true } } } },
+        report: {
+          select: {
+            id: true,
+            status: true,
+            actionItems: { select: { id: true, description: true, done: true, dueDate: true } },
+          },
+        },
       },
       orderBy: { date: 'asc' },
       take,
