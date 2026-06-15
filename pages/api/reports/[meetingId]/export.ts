@@ -1,23 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
 import { prisma } from '../../../../src/lib/prisma';
 import { generatePdf, generateDocx } from '../../../../services/export';
 import { requireAuth, requireMeetingAccess } from '../../../../src/lib/permissions';
 import { attachmentHeader } from '../../../../src/lib/validation';
 import { resolveLayout } from '../../../../src/lib/documentTemplates';
-
-// Optional official coat of arms: drop a PNG at public/emblem.png to embed it in
-// the letterhead (inlined as a data URI so the sandboxed renderer can load it).
-function readEmblem(): string | null {
-  try {
-    const path = join(process.cwd(), 'public', 'emblem.png');
-    if (!existsSync(path)) return null;
-    return `data:image/png;base64,${readFileSync(path).toString('base64')}`;
-  } catch {
-    return null;
-  }
-}
+import { readEmblemDataUri } from '../../../../src/lib/emblem';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { meetingId } = req.query as { meetingId: string };
@@ -45,7 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     objet: report.title,
     authorName: report.author?.name || report.author?.email || null,
     documentDate: report.approvedAt || report.createdAt,
-    emblemDataUri: readEmblem(),
+    emblemDataUri: readEmblemDataUri(),
     layout: resolveLayout(report.template, report.layout),
   };
 

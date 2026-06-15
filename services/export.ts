@@ -97,10 +97,12 @@ function approvalStampHtml(meta: ReportMeta): string {
   )} &mdash; document non approuvé</div>`;
 }
 
-export async function generatePdf(
+// Build the full HTML document. Shared by the PDF export and the on-screen
+// preview so the preview matches the printed result exactly.
+export function buildReportHtml(
   report: { title: string; content?: string },
   meta: ReportMeta = {}
-) {
+): string {
   const layout = meta.layout || resolveLayout('OFFICIAL', null);
   const heading = escapeHtml(meta.documentType || 'Compte rendu');
   const safeContent = escapeHtml(report.content || '').replace(/\r?\n/g, '<br />');
@@ -108,7 +110,7 @@ export async function generatePdf(
   const recipient = meta.recipient ? escapeHtml(meta.recipient) : '';
   const signatory = escapeHtml(layout.signatory || meta.authorName || '');
 
-  const html = `
+  return `
     <html>
       <head>
         <meta charset="utf-8" />
@@ -137,7 +139,13 @@ export async function generatePdf(
       </body>
     </html>
   `;
+}
 
+export async function generatePdf(
+  report: { title: string; content?: string },
+  meta: ReportMeta = {}
+) {
+  const html = buildReportHtml(report, meta);
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {

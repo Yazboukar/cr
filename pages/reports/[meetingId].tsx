@@ -61,6 +61,8 @@ export default function ReportEditor() {
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
 
   useEffect(() => {
     if (!report) return;
@@ -161,6 +163,27 @@ export default function ReportEditor() {
   }
   function setToggle(key: string, value: boolean) {
     setLayout((current) => ({ ...current, [key]: value }));
+  }
+
+  async function openPreview() {
+    setPreviewing(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/reports/${meetingId}/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content, recipient, documentType, template, layout }),
+      });
+      if (response.ok) {
+        setPreviewHtml(await response.text());
+      } else {
+        setError("L'aperçu n'a pas pu être généré.");
+      }
+    } catch {
+      setError("L'aperçu n'a pas pu être généré.");
+    } finally {
+      setPreviewing(false);
+    }
   }
   const workflowActions: ReportAction[] = report
     ? availableActions(report.status, {
@@ -443,6 +466,15 @@ export default function ReportEditor() {
                 {saving ? 'Enregistrement...' : 'Enregistrer'}
               </button>
 
+              <button
+                className="btn-secondary"
+                type="button"
+                onClick={openPreview}
+                disabled={previewing}
+              >
+                {previewing ? 'Génération…' : 'Aperçu avant impression'}
+              </button>
+
               {workflowActions.length > 0 ? (
                 <div className="flex flex-col gap-2 rounded-2xl border border-emerald-950/8 bg-emerald-50/60 px-3 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-800/70">
@@ -488,6 +520,31 @@ export default function ReportEditor() {
           </section>
         </aside>
       </form>
+
+      {previewHtml !== null ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setPreviewHtml(null)}
+        >
+          <div
+            className="flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-emerald-950/8 px-4 py-3">
+              <p className="text-sm font-semibold text-[color:var(--brand-green-900)]">
+                Aperçu du document
+              </p>
+              <button className="btn-secondary" type="button" onClick={() => setPreviewHtml(null)}>
+                Fermer
+              </button>
+            </div>
+            <iframe title="Aperçu du document" sandbox="" srcDoc={previewHtml} className="w-full flex-1 bg-white" />
+            <p className="border-t border-emerald-950/8 px-4 py-2 text-xs text-slate-500">
+              L&apos;aperçu reflète vos modifications en cours. Enregistrez avant d&apos;exporter.
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
