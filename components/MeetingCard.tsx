@@ -2,7 +2,15 @@ import Link from 'next/link';
 import { meetingStatusLabels } from '../src/lib/meetings';
 
 export default function MeetingCard({ meeting }: { meeting: any }) {
-  const date = new Date(meeting.date);
+  const date = new Date(meeting.startTime || meeting.date);
+  const dateLabel = date.toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: meeting.timezone || undefined,
+  });
   const participantsCount = meeting.participants?.length ?? 0;
   const organizer = meeting.organizer?.name || meeting.organizer?.email || 'Equipe';
   const actionItems = meeting.report?.actionItems || [];
@@ -33,7 +41,7 @@ export default function MeetingCard({ meeting }: { meeting: any }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-800/60">
             Date
           </p>
-          <p className="mt-1 text-sm font-medium text-slate-700">{date.toLocaleString()}</p>
+          <p className="mt-1 text-sm font-medium text-slate-700">{dateLabel}</p>
         </div>
         <div className="rounded-2xl bg-white/70 px-4 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-800/60">
