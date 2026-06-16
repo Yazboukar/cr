@@ -1,12 +1,70 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../src/lib/prisma';
+
+
 import { requireAuth, requireRole } from '../../../src/lib/permissions';
+import {
+  DEFAULT_TIMEZONE,
+  isValidEmail,
+  isValidTimeZone,
+  normalizeOptionalString,
+  normalizeString,
+  parseZonedDate,
+} from '../../../src/lib/validation';
+import { buildReminderTimes } from '../../../src/lib/reminders';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     const session = await requireAuth(req, res);
     if (!session) return;
-    const meetings = await prisma.meeting.findMany({ include: { organizer: true, participants: { include: { user: true } } }, orderBy: { date: 'asc' } });
+
+    const role = session.user.role;
+    const userId = session.user.id;
+    // Participants are contacts without accounts, so the only non-admin readers
+    // are organizers: scope them to the meetings they own.
+    const where = role === 'ADMIN' ? {} : { organizerId: userId };
+
+    // Opt-in pagination (defaults to all scoped meetings for backward compat
+    // with the dashboard aggregates that count over the full set).
+    const limit = Number(req.query.limit);
+    const offset = Number(req.query.offset);
+    const take = Number.isInteger(limit) && limit > 0 ? limit : undefined;
+    const skip = Number.isInteger(offset) && offset > 0 ? offset : undefined;
+
+    const meetings = await prisma.meeting.findMany({
+      where,
+      // Explicit select: never expose User.hashedPassword and ship only the
+      // fields the list/dashboard actually use.
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        type: true,
+        location: true,
+        agenda: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        timezone: true,
+        status: true,
+        organizerId: true,
+        organizer: { select: { id: true, name: true, email: true } },
+        participants: {
+          select: { id: true, status: true, contact: { select: { id: true, name: true, email: true } } },
+        },
+        report: {
+          select: {
+            id: true,
+            status: true,
+            actionItems: { select: { id: true, description: true, done: true, dueDate: true } },
+          },
+        },
+      },
+      orderBy: { date: 'asc' },
+      take,
+      skip,
+    });
+
     return res.status(200).json({ meetings });
   }
 
@@ -15,62 +73,190 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const session = await requireRole(req, res, ['ADMIN', 'ORGANIZER']);
       if (!session) return;
 
-      const { title, description, type, date, startTime, endTime, location, agenda, participants, organizerId } = req.body;
-      if (!title || !date) return res.status(400).json({ error: 'title and date required' });
+      const {
+        title,
+        description,
+        type,
+        date,
+        startTime,
+        endTime,
+        location,
+        agenda,
+        participants,
+        organizerId,
+        timezone,
+      } = req.body;
 
-      // Only ADMIN can assign a different organizer; otherwise use the current user
-      const currentUserId = (session.user as any).id;
-      const organizerConnect = (organizerId && (session.user as any).role === 'ADMIN') ? { connect: { id: organizerId } } : { connect: { id: currentUserId } };
+      const titleValue = normalizeString(title);
+      const descriptionValue = normalizeOptionalString(description);
+      const typeValue = normalizeOptionalString(type);
+      const dateValue = normalizeString(date);
+      const startTimeValue = normalizeString(startTime);
+      const endTimeValue = normalizeString(endTime);
+      const locationValue = normalizeOptionalString(location);
+      const agendaValue = normalizeOptionalString(agenda);
+      const participantValues = Array.isArray(participants)
+        ? Array.from(new Set(participants.map((value) => String(value).trim()).filter(Boolean)))
+        : [];
 
-      const meeting = await prisma.meeting.create({
-        data: {
-          title,
-          description: description || '',
-          type: type || '',
-          date: new Date(date),
-          startTime: startTime ? new Date(`${date}T${startTime}`) : null,
-          endTime: endTime ? new Date(`${date}T${endTime}`) : null,
-          location: location || null,
-          agenda: agenda || null,
-          status: 'PLANNED',
-          organizer: organizerConnect
+      const fieldErrors: Record<string, string> = {};
+
+      if (!titleValue) {
+        fieldErrors.title = 'Le titre de la réunion est obligatoire.';
+      }
+
+      if (!dateValue) {
+        fieldErrors.date = 'La date de la réunion est obligatoire.';
+      }
+
+      if (!startTimeValue) {
+        fieldErrors.startTime = "L'heure de debut est obligatoire.";
+      }
+
+      if (!endTimeValue) {
+        fieldErrors.endTime = "L'heure de fin est obligatoire.";
+      }
+
+      if (participantValues.length === 0) {
+        fieldErrors.participants = 'Ajoutez au moins un participant à la réunion.';
+      }
+
+      const timezoneRaw = normalizeOptionalString(timezone);
+      let timezoneValue = DEFAULT_TIMEZONE;
+      if (timezoneRaw) {
+        if (!isValidTimeZone(timezoneRaw)) {
+          fieldErrors.timezone = 'Fuseau horaire invalide.';
+        } else {
+          timezoneValue = timezoneRaw;
         }
-      });
+      }
 
-      // participants can be array of ids or emails
-      if (Array.isArray(participants)) {
-        for (const p of participants) {
-          if (!p) continue;
-          if (typeof p === 'string' && p.includes('@')) {
-            // email
-            const user = await prisma.user.findUnique({ where: { email: p } });
-            if (user) {
-              await prisma.meetingParticipant.create({ data: { meeting: { connect: { id: meeting.id } }, user: { connect: { id: user.id } } } });
-            }
-          } else {
-            // assume id
-            await prisma.meetingParticipant.create({ data: { meeting: { connect: { id: meeting.id } }, user: { connect: { id: p } } } });
+      // Times are entered as wall-clock values in the meeting timezone and stored
+      // as absolute UTC instants, so reminders fire correctly regardless of the
+      // server's timezone.
+      const meetingDate = dateValue ? parseZonedDate(dateValue, '00:00', timezoneValue) : null;
+      const meetingStart =
+        dateValue && startTimeValue ? parseZonedDate(dateValue, startTimeValue, timezoneValue) : null;
+      const meetingEnd =
+        dateValue && endTimeValue ? parseZonedDate(dateValue, endTimeValue, timezoneValue) : null;
+
+      if (dateValue && !meetingDate) {
+        fieldErrors.date = 'La date fournie est invalide.';
+      }
+
+      if (startTimeValue && !meetingStart) {
+        fieldErrors.startTime = "L'heure de début est invalide.";
+      }
+
+      if (endTimeValue && !meetingEnd) {
+        fieldErrors.endTime = "L'heure de fin est invalide.";
+      }
+
+      if (meetingStart && meetingEnd && meetingEnd.getTime() <= meetingStart.getTime()) {
+        fieldErrors.endTime = "L'heure de fin doit être postérieure à l'heure de début.";
+      }
+
+      const invalidParticipantEmails = participantValues.filter(
+        (value) => value.includes('@') && !isValidEmail(value)
+      );
+
+      if (invalidParticipantEmails.length > 0) {
+        fieldErrors.participants = `Adresse email invalide: ${invalidParticipantEmails[0]}`;
+      }
+
+      if (Object.keys(fieldErrors).length > 0) {
+        return res.status(400).json({
+          error: "Merci de corriger les champs obligatoires avant d'enregistrer la réunion.",
+          fieldErrors,
+        });
+      }
+
+      const currentUserId = session.user.id;
+      const organizerConnect =
+        organizerId && session.user.role === 'ADMIN'
+          ? { connect: { id: organizerId } }
+          : { connect: { id: currentUserId } };
+
+      const meeting = await prisma.$transaction(async (tx) => {
+        const createdMeeting = await tx.meeting.create({
+          data: {
+            title: titleValue,
+            description: descriptionValue,
+            type: typeValue,
+            date: meetingDate as Date,
+            startTime: meetingStart,
+            endTime: meetingEnd,
+            location: locationValue,
+            agenda: agendaValue,
+            timezone: timezoneValue,
+            status: 'PLANNED',
+            organizer: organizerConnect,
+          },
+        });
+
+        const participantIds: string[] = [];
+
+        for (const value of participantValues) {
+          if (value.includes('@')) {
+            const contact = await tx.contact.upsert({
+              where: { email: value.toLowerCase() },
+              update: {},
+              create: { email: value.toLowerCase() },
+              select: { id: true },
+            });
+
+            participantIds.push(contact.id);
+            continue;
           }
-        }
-      }
 
-      // schedule basic notifications (J-1 and H-1) for participants created
-      const allParticipants = await prisma.meetingParticipant.findMany({ where: { meetingId: meeting.id } });
-      const start = meeting.startTime ?? meeting.date;
-      const times = [ new Date(meeting.date.getTime() - 24 * 60 * 60 * 1000), new Date(new Date(start).getTime() - 60 * 60 * 1000) ];
-      for (const mp of allParticipants) {
-        for (const t of times) {
-          await prisma.notification.create({ data: { meeting: { connect: { id: meeting.id } }, user: { connect: { id: mp.userId } }, channel: 'EMAIL', scheduledAt: t } });
+          const contact = await tx.contact.findUnique({
+            where: { id: value },
+            select: { id: true },
+          });
+
+          if (!contact) {
+            throw new Error(`Participant introuvable: ${value}`);
+          }
+
+          participantIds.push(contact.id);
         }
-      }
+
+        const uniqueParticipantIds = Array.from(new Set(participantIds));
+
+        if (uniqueParticipantIds.length > 0) {
+          await tx.meetingParticipant.createMany({
+            data: uniqueParticipantIds.map((contactId) => ({
+              meetingId: createdMeeting.id,
+              contactId,
+            })),
+            skipDuplicates: true,
+          });
+        }
+
+        const reminderTimes = buildReminderTimes(meetingStart as Date);
+        if (reminderTimes.length > 0 && uniqueParticipantIds.length > 0) {
+          await tx.notification.createMany({
+            data: uniqueParticipantIds.flatMap((contactId) =>
+              reminderTimes.map((scheduledAt) => ({
+                meetingId: createdMeeting.id,
+                contactId,
+                channel: 'EMAIL' as const,
+                scheduledAt,
+              }))
+            ),
+          });
+        }
+
+        return createdMeeting;
+      });
 
       return res.status(201).json({ meeting });
     } catch (err: any) {
-      console.error('Error creating meeting:', err);
-      return res.status(500).json({ error: err?.message || 'Internal Server Error', stack: err?.stack });
+      console.error('Erreur lors de la création de la réunion :', err);
+      return res.status(500).json({ error: 'Erreur interne du serveur' });
     }
   }
 
   res.setHeader('Allow', ['GET', 'POST']);
-  res.status(405).end(`Method ${req.method} Not Allowed`);
+  return res.status(405).end(`Méthode ${req.method} non autorisée`);
 }

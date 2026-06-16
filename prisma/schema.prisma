@@ -49,6 +49,11 @@ enum ReportStatus {
   ARCHIVED
 }
 
+enum AccountTokenType {
+  PASSWORD_RESET
+  INVITE
+}
+
 model User {
   id             String   @id @default(cuid())
   email          String   @unique
@@ -59,12 +64,39 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   meetings       Meeting[]
-  participants   MeetingParticipant[]
-  reports        Report[]
+  reports        Report[]   @relation("ReportAuthor")
+  approvedReports Report[]  @relation("ReportApprover")
   auditLogs      AuditLog[]
-  notifications  Notification[]
-  ownedActionItems ReportActionItem[]
   uploadedAttachments Attachment[]
+  accountTokens  AccountToken[]
+}
+
+// Single-use tokens for password reset and staff-account invitations. Only the
+// SHA-256 hash of the token is stored; the raw token travels in the email link.
+model AccountToken {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  type      AccountTokenType
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Directory of people who can be invited to meetings. A Contact is NOT an
+// authentication account (see User) — invitees receive email/SMS reminders and
+// do not log in. Keeping the two apart removes the role-mutation footgun.
+model Contact {
+  id               String   @id @default(cuid())
+  name             String?
+  email            String   @unique
+  createdAt        DateTime @default(now())
+  participants     MeetingParticipant[]
+  notifications    Notification[]
+  ownedActionItems ReportActionItem[]
 }
 
 model Meeting {
@@ -77,6 +109,7 @@ model Meeting {
   endTime     DateTime?
   location    String?
   agenda      String?
+  timezone    String?
   status      MeetingStatus @default(PLANNED)
   organizerId String
   organizer   User     @relation(fields: [organizerId], references: [id])
@@ -86,30 +119,42 @@ model Meeting {
   notifications Notification[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([date])
+  @@index([status])
+  @@index([organizerId])
 }
 
 model MeetingParticipant {
   id        String   @id @default(cuid())
   meeting   Meeting  @relation(fields: [meetingId], references: [id])
   meetingId String
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
+  contact   Contact  @relation(fields: [contactId], references: [id])
+  contactId String
   status    ParticipantStatus @default(INVITED)
   role      String?
   createdAt DateTime @default(now())
+
+  @@unique([meetingId, contactId])
+  @@index([contactId])
+  @@index([status])
 }
 
 model Notification {
   id          String   @id @default(cuid())
   meeting     Meeting? @relation(fields: [meetingId], references: [id])
   meetingId   String?
-  user        User     @relation(fields: [userId], references: [id])
-  userId      String
+  contact     Contact  @relation(fields: [contactId], references: [id])
+  contactId   String
   channel     NotificationChannel
   scheduledAt DateTime
   sentAt      DateTime?
   status      NotificationStatus @default(PENDING)
   createdAt   DateTime @default(now())
+
+  @@index([status, scheduledAt])
+  @@index([meetingId])
+  @@index([contactId])
 }
 
 model Report {
@@ -120,12 +165,22 @@ model Report {
   summary     String?
   content     String?
   status      ReportStatus @default(DRAFT)
+  recipient   String?
+  documentType String  @default("Compte rendu")
+  template     String  @default("OFFICIAL")
+  layout       Json?
   authorId    String
-  author      User     @relation(fields: [authorId], references: [id])
+  author      User     @relation("ReportAuthor", fields: [authorId], references: [id])
+  submittedAt  DateTime?
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   User?   @relation("ReportApprover", fields: [approvedById], references: [id])
   actionItems ReportActionItem[]
   attachments Attachment[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([approvedById])
 }
 
 model ReportActionItem {
@@ -134,10 +189,14 @@ model ReportActionItem {
   reportId    String
   description String
   ownerId     String?
-  owner       User?    @relation(fields: [ownerId], references: [id])
+  owner       Contact? @relation(fields: [ownerId], references: [id])
   dueDate     DateTime?
   done        Boolean  @default(false)
   createdAt   DateTime @default(now())
+
+  @@index([reportId])
+  @@index([ownerId])
+  @@index([done])
 }
 
 model Attachment {
@@ -162,4 +221,8 @@ model AuditLog {
   actor     User?    @relation(fields: [actorId], references: [id])
   timestamp DateTime @default(now())
   diff      Json?
+
+  @@index([model, modelId])
+  @@index([actorId])
+  @@index([timestamp])
 }

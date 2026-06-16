@@ -1,37 +1,138 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '../../../src/lib/prisma';
-import { requireRole } from '../../../src/lib/permissions';
+import { requireAuth, requireMeetingAccess, requireRole } from '../../../src/lib/permissions';
+import { normalizeOptionalString, normalizeString } from '../../../src/lib/validation';
+import { logAction } from '../../../src/lib/audit';
+import { isReportEditable } from '../../../src/lib/reportWorkflow';
+import { normalizeTemplate, sanitizeLayout } from '../../../src/lib/documentTemplates';
+
+function normalizeActionItems(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => ({
+      description: normalizeString(item?.description),
+      ownerId: normalizeOptionalString(item?.ownerId),
+      dueDate: normalizeOptionalString(item?.dueDate),
+      done: Boolean(item?.done),
+    }))
+    .filter((item) => item.description.length > 0);
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { meetingId } = req.query as { meetingId: string };
+  if (req.method === 'GET') {
+    const session = await requireAuth(req, res);
+    if (!session) return;
+    if (!(await requireMeetingAccess(res, session, meetingId))) return;
+
+    const report = await prisma.report.findUnique({
+      where: { meetingId },
+      include: {
+        author: { select: { id: true, name: true, email: true } },
+        approvedBy: { select: { id: true, name: true, email: true } },
+        actionItems: true,
+      },
+    });
+
+    if (!report) return res.status(404).json({ error: 'Compte rendu introuvable' });
+    return res.status(200).json({ report });
+  }
+
   if (req.method === 'POST') {
     const session = await requireRole(req, res, ['ADMIN', 'ORGANIZER', 'REPORTER']);
     if (!session) return;
+    // Align write access with read scoping: the author must also be involved in
+    // the meeting (admin, organizer or participant), not just hold the role.
+    if (!(await requireMeetingAccess(res, session, meetingId))) return;
 
-    const { title, content } = req.body;
+    const title = normalizeString(req.body?.title);
+    const content = normalizeOptionalString(req.body?.content);
+    const summary = normalizeOptionalString(req.body?.summary);
+    const recipient = normalizeOptionalString(req.body?.recipient);
+    const documentType = normalizeString(req.body?.documentType) || 'Compte rendu';
+    const template = normalizeTemplate(req.body?.template);
+    const layout = sanitizeLayout(req.body?.layout);
+    const actionItems = normalizeActionItems(req.body?.actionItems);
+
+    if (!title) {
+      return res.status(400).json({ error: 'Titre requis' });
+    }
+
     const meeting = await prisma.meeting.findUnique({ where: { id: meetingId } });
-    if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+    if (!meeting) return res.status(404).json({ error: 'Réunion introuvable' });
 
     const now = new Date();
     if (meeting.status !== 'COMPLETED' && meeting.date > now) {
-      return res.status(400).json({ error: 'Report can only be created for past or completed meetings' });
+      return res.status(400).json({ error: 'Le compte rendu ne peut être créé que pour une réunion passée ou terminée' });
     }
 
     const existing = await prisma.report.findUnique({ where: { meetingId } });
     if (existing) {
       // only author or admin can update
-      const userId = (session.user as any).id;
-      if (existing.authorId !== userId && (session.user as any).role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Not allowed to edit this report' });
+      const userId = session.user.id;
+      if (existing.authorId !== userId && session.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Vous ne pouvez pas modifier ce compte rendu' });
       }
-      const updated = await prisma.report.update({ where: { id: existing.id }, data: { title, content } });
+      // Content is frozen once the report leaves DRAFT (status changes go through
+      // the approval workflow); admins may still amend.
+      if (!isReportEditable(existing.status, session.user.role)) {
+        return res
+          .status(409)
+          .json({ error: "Ce compte rendu n'est plus modifiable (en revue ou approuvé)." });
+      }
+      const updated = await prisma.$transaction(async (tx) => {
+        const report = await tx.report.update({
+          where: { id: existing.id },
+          data: { title, content, summary, recipient, documentType, template, layout },
+        });
+
+        await tx.reportActionItem.deleteMany({ where: { reportId: existing.id } });
+        if (actionItems.length > 0) {
+          await tx.reportActionItem.createMany({
+            data: actionItems.map((item) => ({
+              reportId: existing.id,
+              description: item.description,
+              ownerId: item.ownerId,
+              dueDate: item.dueDate ? new Date(item.dueDate) : null,
+              done: item.done,
+            })),
+          });
+        }
+
+        return report;
+      });
+      await logAction('Report', existing.id, 'UPDATE', userId, { meetingId, actionItems: actionItems.length });
       return res.status(200).json({ report: updated });
     }
 
-    const report = await prisma.report.create({ data: { meeting: { connect: { id: meetingId } }, title, content, author: { connect: { id: (session.user as any).id } } } as any });
+    const report = await prisma.report.create({
+      data: {
+        meeting: { connect: { id: meetingId } },
+        title,
+        summary,
+        content,
+        recipient,
+        documentType,
+        template,
+        layout,
+        author: { connect: { id: session.user.id } },
+        actionItems: {
+          create: actionItems.map((item) => ({
+            description: item.description,
+            ownerId: item.ownerId,
+            dueDate: item.dueDate ? new Date(item.dueDate) : null,
+            done: item.done,
+          })),
+        },
+      } as any,
+    });
+    await logAction('Report', report.id, 'CREATE', session.user.id, { meetingId, actionItems: actionItems.length });
     return res.status(201).json({ report });
   }
 
-  res.setHeader('Allow', ['POST']);
-  res.status(405).end(`Method ${req.method} Not Allowed`);
+  res.setHeader('Allow', ['GET', 'POST']);
+  res.status(405).end(`Méthode ${req.method} non autorisée`);
 }

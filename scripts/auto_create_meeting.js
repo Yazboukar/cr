@@ -1,25 +1,63 @@
 const puppeteer = require('puppeteer');
 
 (async () => {
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const browser = await puppeteer.launch({ headless: false, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const page = await browser.newPage();
 
   page.on('console', (msg) => console.log('PAGE:', msg.text()));
   page.on('dialog', async (dialog) => { console.log('DIALOG:', dialog.message()); await dialog.dismiss(); });
+  page.on('request', async (request) => {
+    try {
+      if (request.method() === 'POST') {
+        const postData = request.postData();
+        console.log('REQUEST:', request.method(), request.url(), postData ? postData.slice(0, 1000) : '');
+      } else {
+        console.log('REQUEST:', request.method(), request.url());
+      }
+    } catch (e) {
+      console.log('REQUEST LOG ERROR', e);
+    }
+  });
+  page.on('response', async (response) => {
+    try {
+      const url = response.url();
+      if (url.includes('/api/') || url.includes('/api/auth')) {
+        const status = response.status();
+        let body = '';
+        try { body = await response.text(); } catch (_) { body = '<non-text response>'; }
+        console.log('RESPONSE:', status, url, body.slice(0, 200));
+      }
+    } catch (e) {
+      console.log('RESPONSE LOG ERROR', e);
+    }
+  });
 
   try {
     console.log('Opening sign-in page...');
     await page.goto('http://localhost:3000/auth/signin', { waitUntil: 'networkidle2' });
+    const preCookies = await page.cookies();
+    console.log('COOKIES BEFORE SUBMIT:', JSON.stringify(preCookies));
 
     await page.waitForSelector('input[name="email"]', { timeout: 5000 });
     await page.type('input[name="email"]', 'organizer@example.com');
     await page.type('input[name="password"]', 'organizerpass');
 
     console.log('Submitting sign-in form...');
+    // Refresh CSRF token from API just before submitting (avoid CSRF mismatch)
+    try {
+      const fetched = await page.evaluate(() => fetch('/api/auth/csrf').then(r => r.json()));
+      console.log('Fetched CSRF object:', JSON.stringify(fetched));
+      await page.evaluate((t) => { const el = document.querySelector('input[name="csrfToken"]'); if (el) el.value = t; }, fetched.csrfToken);
+    } catch (e) {
+      console.log('Error fetching CSRF before submit', e);
+    }
+
     await Promise.all([
       page.click('button[type="submit"]'),
       page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {})
     ]);
+    const postCookies = await page.cookies();
+    console.log('COOKIES AFTER SUBMIT:', JSON.stringify(postCookies));
     console.log('Signed in, current URL:', page.url());
 
     console.log('Opening create meeting page...');
